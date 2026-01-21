@@ -65,4 +65,32 @@ class GitHubAPIService {
 
         return allIssues
     }
+
+    /// Fetches a specific issue with its comments
+    /// - Parameters:
+    ///   - owner: Repository owner login
+    ///   - repo: Repository name
+    ///   - number: Issue number
+    /// - Returns: Issue and its comments
+    func fetchIssueDetail(
+        owner: String,
+        repo: String,
+        number: Int
+    ) async throws -> (issue: Issue, comments: [Comment]) {
+        let variables: [String: Any] = [
+            "owner": owner,
+            "repo": repo,
+            "number": number
+        ]
+
+        let response: IssueDetailResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.issueDetailQuery,
+            variables: variables
+        )
+
+        let issue = response.repository.issue.toIssue()
+        let comments = response.repository.issue.toComments()
+
+        return (issue, comments)
+    }
 }

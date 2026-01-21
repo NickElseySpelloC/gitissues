@@ -12,7 +12,7 @@ enum IssueState: String, Codable {
     case closed = "CLOSED"
 }
 
-struct Issue: Codable, Identifiable {
+struct Issue: Codable, Identifiable, Hashable {
     let id: String
     let number: Int
     let title: String
