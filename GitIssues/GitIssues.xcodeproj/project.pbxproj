@@ -9,6 +9,11 @@
 /* Begin PBXBuildFile section */
 		018C5CB62F2041AA00B78046 /* KeychainSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 018C5CB52F2041AA00B78046 /* KeychainSwift */; };
 		018C5CB92F2041C400B78046 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 018C5CB82F2041C400B78046 /* MarkdownUI */; };
+		01CE786A2F204CC90023EA53 /* Repository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CE78672F204CC90023EA53 /* Repository.swift */; };
+		01CE786C2F204CC90023EA53 /* Label.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CE78662F204CC90023EA53 /* Label.swift */; };
+		01CE786D2F204CC90023EA53 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CE78682F204CC90023EA53 /* User.swift */; };
+		01CE78762F204D120023EA53 /* GitHubAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CE78742F204D120023EA53 /* GitHubAPIService.swift */; };
+		01CE78772F204E8E0023EA53 /* GraphQLQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CE78702F204CE90023EA53 /* GraphQLQueries.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -16,6 +21,14 @@
 		018C5CAC2F203CCE00B78046 /* OAuth2Manager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuth2Manager.swift; sourceTree = "<group>"; };
 		018C5CAD2F203CCE00B78046 /* TokenStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStorage.swift; sourceTree = "<group>"; };
 		018C5CB12F203CE700B78046 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		01CE78642F204CC90023EA53 /* Comment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Comment.swift; sourceTree = "<group>"; };
+		01CE78652F204CC90023EA53 /* Issue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Issue.swift; sourceTree = "<group>"; };
+		01CE78662F204CC90023EA53 /* Label.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Label.swift; sourceTree = "<group>"; };
+		01CE78672F204CC90023EA53 /* Repository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repository.swift; sourceTree = "<group>"; };
+		01CE78682F204CC90023EA53 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
+		01CE786F2F204CE90023EA53 /* GraphQLClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphQLClient.swift; sourceTree = "<group>"; };
+		01CE78702F204CE90023EA53 /* GraphQLQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphQLQueries.swift; sourceTree = "<group>"; };
+		01CE78742F204D120023EA53 /* GitHubAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubAPIService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -23,6 +36,11 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				Models/Label.swift,
+				Models/Repository.swift,
+				Models/User.swift,
+				Networking/GraphQLQueries.swift,
+				Services/GitHubAPIService.swift,
 			);
 			target = 018C5C822F203AE500B78046 /* GitIssues */;
 		};
@@ -55,6 +73,8 @@
 		018C5C7A2F203AE500B78046 = {
 			isa = PBXGroup;
 			children = (
+				01CE78752F204D120023EA53 /* Services */,
+				01CE78692F204CC90023EA53 /* Models */,
 				018C5CB22F203CE700B78046 /* Authentication */,
 				018C5CAE2F203CCE00B78046 /* Authentication */,
 				018C5C852F203AE500B78046 /* GitIssues */,
@@ -87,6 +107,39 @@
 			);
 			name = Authentication;
 			path = GitIssues/Views/Authentication;
+			sourceTree = "<group>";
+		};
+		01CE78692F204CC90023EA53 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				01CE78712F204CE90023EA53 /* Networking */,
+				01CE78642F204CC90023EA53 /* Comment.swift */,
+				01CE78652F204CC90023EA53 /* Issue.swift */,
+				01CE78662F204CC90023EA53 /* Label.swift */,
+				01CE78672F204CC90023EA53 /* Repository.swift */,
+				01CE78682F204CC90023EA53 /* User.swift */,
+			);
+			name = Models;
+			path = GitIssues/Models;
+			sourceTree = "<group>";
+		};
+		01CE78712F204CE90023EA53 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				01CE786F2F204CE90023EA53 /* GraphQLClient.swift */,
+				01CE78702F204CE90023EA53 /* GraphQLQueries.swift */,
+			);
+			name = Networking;
+			path = GitIssues/Networking;
+			sourceTree = SOURCE_ROOT;
+		};
+		01CE78752F204D120023EA53 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				01CE78742F204D120023EA53 /* GitHubAPIService.swift */,
+			);
+			name = Services;
+			path = GitIssues/Services;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -169,6 +222,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				01CE78772F204E8E0023EA53 /* GraphQLQueries.swift in Sources */,
+				01CE786A2F204CC90023EA53 /* Repository.swift in Sources */,
+				01CE786C2F204CC90023EA53 /* Label.swift in Sources */,
+				01CE786D2F204CC90023EA53 /* User.swift in Sources */,
+				01CE78762F204D120023EA53 /* GitHubAPIService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
