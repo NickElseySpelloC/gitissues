@@ -6,68 +6,135 @@
 //
 
 import SwiftUI
+import Combine
 
 struct ContentView: View {
     @EnvironmentObject var authManager: OAuth2Manager
-    @State private var issues: [Issue] = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    @StateObject private var viewModel: IssuesListViewModelWrapper
+    @State private var searchText = ""
+
+    init() {
+        _viewModel = StateObject(wrappedValue: IssuesListViewModelWrapper())
+    }
 
     var body: some View {
-        NavigationSplitView {
-            // Sidebar with issues list
-            Group {
-                if isLoading {
-                    ProgressView("Loading issues...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error = errorMessage {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 48))
-                            .foregroundColor(.orange)
-                        Text("Error Loading Issues")
-                            .font(.headline)
-                        Text(error)
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                        Button("Retry") {
-                            Task {
-                                await loadIssues()
-                            }
+        NavigationSplitView(columnVisibility: .constant(.all)) {
+            VStack(spacing: 0) {
+                // Title and count
+                HStack {
+                    Text("Issues")
+                        .font(.title2)
+                        .fontWeight(.bold)
+
+                    Text("(\(viewModel.viewModel?.filteredIssues.count ?? 0))")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+
+                // Search bar
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                    TextField("Search issues...", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .onChange(of: searchText) { _, newValue in
+                            viewModel.viewModel?.setSearchText(newValue)
                         }
-                        .buttonStyle(.borderedProminent)
+
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                            viewModel.viewModel?.setSearchText("")
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if issues.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "checkmark.circle")
-                            .font(.system(size: 48))
-                            .foregroundColor(.green)
-                        Text("No Issues")
-                            .font(.headline)
-                        Text("You don't have any issues assigned to you.")
-                            .font(.body)
-                            .foregroundColor(.secondary)
+                }
+                .padding(8)
+                .background(Color(nsColor: .controlBackgroundColor))
+
+                // Filter bar
+                if let vm = viewModel.viewModel {
+                    FilterBarView(viewModel: vm)
+                }
+
+                Divider()
+
+                // Issues list
+                Group {
+                    if let vm = viewModel.viewModel {
+                        if vm.isLoading {
+                            ProgressView("Loading issues...")
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else if let error = vm.errorMessage {
+                            VStack(spacing: 16) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.system(size: 48))
+                                    .foregroundColor(.orange)
+                                Text("Error Loading Issues")
+                                    .font(.headline)
+                                Text(error)
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                                Button("Retry") {
+                                    Task {
+                                        await vm.loadIssues()
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else if vm.filteredIssues.isEmpty {
+                            VStack(spacing: 16) {
+                                Image(systemName: searchText.isEmpty ? "checkmark.circle" : "magnifyingglass")
+                                    .font(.system(size: 48))
+                                    .foregroundColor(.green)
+                                Text(searchText.isEmpty ? "No Issues" : "No Results")
+                                    .font(.headline)
+                                Text(searchText.isEmpty
+                                     ? "You don't have any issues matching the current filters."
+                                     : "No issues match your search criteria.")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            List(vm.filteredIssues) { issue in
+                                IssueRow(
+                                    issue: issue,
+                                    isPinned: vm.isPinned(issue.id),
+                                    onPinToggle: {
+                                        vm.togglePin(for: issue.id)
+                                    }
+                                )
+                            }
+                            .listStyle(.sidebar)
+                        }
+                    } else {
+                        ProgressView("Initializing...")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    List(issues) { issue in
-                        IssueRow(issue: issue)
-                    }
-                    .listStyle(.sidebar)
                 }
             }
-            .navigationTitle("Issues (\(issues.count))")
+            .navigationTitle("GitIssues")
+            .navigationSplitViewColumnWidth(min: 400, ideal: 600, max: 800)
             .toolbar(content: {
                 ToolbarItemGroup(placement: .automatic) {
                     Button {
-                        Task { await loadIssues() }
+                        Task { await viewModel.viewModel?.loadIssues() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
-                    .disabled(isLoading)
+                    .disabled(viewModel.viewModel?.isLoading ?? true)
                     .help("Refresh issues")
 
                     Button {
@@ -84,32 +151,11 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .task {
-            await loadIssues()
-        }
-    }
-
-    private func loadIssues() async {
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            guard let accessToken = authManager.getAccessToken() else {
-                errorMessage = "No access token available"
-                isLoading = false
-                return
-            }
-
-            let apiService = GitHubAPIService(accessToken: accessToken)
-            let fetchedIssues = try await apiService.fetchAllIssues(states: [.open])
-
-            await MainActor.run {
-                self.issues = fetchedIssues
-                self.isLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
+            // Initialize viewModel with actual token
+            if viewModel.viewModel == nil, let accessToken = authManager.getAccessToken() {
+                let newViewModel = IssuesListViewModel(accessToken: accessToken)
+                viewModel.viewModel = newViewModel
+                await newViewModel.loadIssues()
             }
         }
     }
@@ -117,43 +163,56 @@ struct ContentView: View {
 
 struct IssueRow: View {
     let issue: Issue
+    let isPinned: Bool
+    let onPinToggle: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: issue.state == .open ? "circle" : "checkmark.circle.fill")
-                    .foregroundColor(issue.state == .open ? .green : .purple)
-
-                Text(issue.title)
-                    .font(.headline)
-                    .lineLimit(2)
-
-                Spacer()
-
-                Text("#\(issue.number)")
+        HStack(spacing: 12) {
+            // Pin button
+            Button(action: onPinToggle) {
+                Image(systemName: isPinned ? "pin.fill" : "pin")
+                    .foregroundColor(isPinned ? .accentColor : .secondary)
                     .font(.caption)
-                    .foregroundColor(.secondary)
             }
+            .buttonStyle(.plain)
+            .help(isPinned ? "Unpin issue" : "Pin issue")
 
-            HStack(spacing: 4) {
-                Text(issue.repository.fullName)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: issue.state == .open ? "circle" : "checkmark.circle.fill")
+                        .foregroundColor(issue.state == .open ? .green : .purple)
 
-                Text("•")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    Text(issue.title)
+                        .font(.headline)
+                        .lineLimit(2)
 
-                Text(issue.updatedAt, style: .relative)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+                    Spacer()
 
-            if !issue.labels.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 4) {
-                        ForEach(issue.labels) { label in
-                            LabelBadge(label: label)
+                    Text("#\(issue.number)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                HStack(spacing: 4) {
+                    Text(issue.repository.fullName)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("•")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text(issue.updatedAt, style: .relative)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                if !issue.labels.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 4) {
+                            ForEach(issue.labels) { label in
+                                LabelBadge(label: label)
+                            }
                         }
                     }
                 }
@@ -197,6 +256,23 @@ extension Color {
             blue: Double(b) / 255
         )
     }
+}
+
+// Wrapper to allow StateObject with late initialization
+@MainActor
+class IssuesListViewModelWrapper: ObservableObject {
+    var viewModel: IssuesListViewModel? {
+        didSet {
+            if let viewModel = viewModel {
+                // Forward changes from the nested ViewModel
+                viewModel.objectWillChange.sink { [weak self] _ in
+                    self?.objectWillChange.send()
+                }.store(in: &cancellables)
+            }
+        }
+    }
+
+    private var cancellables = Set<AnyCancellable>()
 }
 
 #Preview {
