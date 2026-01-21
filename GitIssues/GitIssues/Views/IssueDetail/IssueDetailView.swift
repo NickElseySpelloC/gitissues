@@ -14,7 +14,7 @@ struct IssueDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // Header
-                IssueHeaderView(issue: viewModel.issue, isPinned: viewModel.isPinned()) {
+                IssueHeaderView(issue: viewModel.issue, isPinned: viewModel.isPinned) {
                     viewModel.togglePin()
                 }
 

@@ -13,13 +13,14 @@ struct ContentView: View {
     @StateObject private var viewModel: IssuesListViewModelWrapper
     @State private var searchText = ""
     @State private var selectedIssue: Issue?
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     init() {
         _viewModel = StateObject(wrappedValue: IssuesListViewModelWrapper())
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: .constant(.all)) {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(spacing: 0) {
                 // Title and count
                 HStack {
@@ -152,15 +153,17 @@ struct ContentView: View {
         } detail: {
             // Detail view
             if let selectedIssue = selectedIssue,
-               let accessToken = authManager.getAccessToken() {
+               let accessToken = authManager.getAccessToken(),
+               let vm = viewModel.viewModel {
                 let apiService = GitHubAPIService(accessToken: accessToken)
-                let pinningService = PinningService()
                 let detailViewModel = IssueDetailViewModel(
                     issue: selectedIssue,
                     apiService: apiService,
-                    pinningService: pinningService
+                    pinningService: vm.pinningService, // Share the same service instance
+                    listViewModel: vm // Pass the list view model for updates
                 )
                 IssueDetailView(viewModel: detailViewModel)
+                    .id(selectedIssue.id) // Force view recreation when selection changes
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "doc.text.magnifyingglass")

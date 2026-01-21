@@ -18,7 +18,7 @@ class IssuesListViewModel: ObservableObject {
     @Published var pinnedIssueIDs: Set<String> = []
 
     private let apiService: GitHubAPIService
-    private let pinningService: PinningService
+    let pinningService: PinningService // Made public so detail view can access it
     private var cancellables = Set<AnyCancellable>()
 
     init(accessToken: String) {
