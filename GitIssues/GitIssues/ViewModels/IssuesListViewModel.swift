@@ -16,6 +16,7 @@ class IssuesListViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var filterOptions = FilterOptions()
     @Published var pinnedIssueIDs: Set<String> = []
+    @Published var viewerLogin: String?
 
     private let apiService: GitHubAPIService
     let pinningService: PinningService // Made public so detail view can access it
@@ -27,9 +28,9 @@ class IssuesListViewModel: ObservableObject {
         self.pinnedIssueIDs = pinningService.getPinnedIssues()
 
         // Observe filter changes and refilter
-        Publishers.CombineLatest3($filterOptions, $allIssues, $pinnedIssueIDs)
-            .map { filterOptions, allIssues, pinnedIDs in
-                Self.applyFiltersAndSort(filterOptions: filterOptions, to: allIssues, pinnedIDs: pinnedIDs)
+        Publishers.CombineLatest4($filterOptions, $allIssues, $pinnedIssueIDs, $viewerLogin)
+            .map { filterOptions, allIssues, pinnedIDs, viewerLogin in
+                Self.applyFiltersAndSort(filterOptions: filterOptions, to: allIssues, pinnedIDs: pinnedIDs, viewerLogin: viewerLogin)
             }
             .assign(to: &$filteredIssues)
     }
@@ -41,6 +42,13 @@ class IssuesListViewModel: ObservableObject {
         errorMessage = nil
 
         do {
+            // Fetch viewer login if not already fetched
+            if viewerLogin == nil {
+                print("DEBUG: Fetching viewer login")
+                viewerLogin = try await apiService.fetchViewerLogin()
+                print("DEBUG: Viewer login: \(viewerLogin ?? "nil")")
+            }
+
             print("DEBUG: Fetching issues with states: \(String(describing: filterOptions.stateFilter.issueStates))")
             let issues = try await apiService.fetchAllIssues(states: filterOptions.stateFilter.issueStates)
             print("DEBUG: Fetched \(issues.count) issues")
@@ -55,10 +63,10 @@ class IssuesListViewModel: ObservableObject {
     }
 
     /// Applies filters and sorting to issues
-    private static func applyFiltersAndSort(filterOptions: FilterOptions, to issues: [Issue], pinnedIDs: Set<String>) -> [Issue] {
+    private static func applyFiltersAndSort(filterOptions: FilterOptions, to issues: [Issue], pinnedIDs: Set<String>, viewerLogin: String?) -> [Issue] {
         print("DEBUG: applyFiltersAndSort called with \(issues.count) issues")
         // Filter issues
-        let filtered = issues.filter { filterOptions.matches(issue: $0) }
+        let filtered = issues.filter { filterOptions.matches(issue: $0, viewerLogin: viewerLogin) }
         print("DEBUG: After filtering: \(filtered.count) issues")
 
         // Sort issues
@@ -106,6 +114,15 @@ class IssuesListViewModel: ObservableObject {
         print("DEBUG: setVisibilityFilter called with \(filter)")
         var options = filterOptions
         options.visibilityFilter = filter
+        filterOptions = options
+        print("DEBUG: filterOptions updated, filtered issues count: \(filteredIssues.count)")
+    }
+
+    /// Updates the involvement filter
+    func setInvolvementFilter(_ filter: InvolvementFilter) {
+        print("DEBUG: setInvolvementFilter called with \(filter)")
+        var options = filterOptions
+        options.involvementFilter = filter
         filterOptions = options
         print("DEBUG: filterOptions updated, filtered issues count: \(filteredIssues.count)")
     }

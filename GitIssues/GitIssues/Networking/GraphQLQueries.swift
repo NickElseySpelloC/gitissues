@@ -8,16 +8,25 @@
 import Foundation
 
 struct GraphQLQueries {
-    /// Query to fetch all issues for the authenticated user
-    static let allIssuesQuery = """
-    query AllIssues($cursor: String, $states: [IssueState!], $first: Int = 50) {
+    /// Query to fetch the authenticated user's login
+    static let viewerQuery = """
+    query Viewer {
       viewer {
-        issues(first: $first, after: $cursor, states: $states, orderBy: {field: UPDATED_AT, direction: DESC}) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          nodes {
+        login
+      }
+    }
+    """
+
+    /// Query to fetch all issues involving the authenticated user using search
+    static let allIssuesQuery = """
+    query AllIssues($query: String!, $cursor: String, $first: Int = 50) {
+      search(query: $query, type: ISSUE, first: $first, after: $cursor) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          ... on Issue {
             id
             number
             title
@@ -277,13 +286,9 @@ struct GraphQLQueries {
 
 // Response structures for GraphQL queries
 struct AllIssuesResponse: Codable {
-    let viewer: Viewer
+    let search: SearchConnection
 
-    struct Viewer: Codable {
-        let issues: IssuesConnection
-    }
-
-    struct IssuesConnection: Codable {
+    struct SearchConnection: Codable {
         let pageInfo: PageInfo
         let nodes: [IssueNode]
     }
@@ -818,5 +823,14 @@ struct DeleteCommentResponse: Codable {
 
     struct DeleteIssueCommentPayload: Codable {
         let clientMutationId: String?
+    }
+}
+
+// Response structure for viewer query
+struct ViewerResponse: Codable {
+    let viewer: ViewerNode
+
+    struct ViewerNode: Codable {
+        let login: String
     }
 }

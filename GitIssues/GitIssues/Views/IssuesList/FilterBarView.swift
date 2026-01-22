@@ -33,7 +33,7 @@ struct FilterBarView: View {
                 Spacer()
             }
 
-            // Visibility and Sort row
+            // Visibility, Involvement, and Sort row
             HStack(spacing: 16) {
                 // Visibility filter
                 HStack(spacing: 8) {
@@ -51,6 +51,24 @@ struct FilterBarView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 200)
+                }
+
+                // Involvement filter
+                HStack(spacing: 8) {
+                    Text("Involvement:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Picker("Involvement", selection: Binding(
+                        get: { viewModel.filterOptions.involvementFilter },
+                        set: { viewModel.setInvolvementFilter($0) }
+                    )) {
+                        ForEach(InvolvementFilter.allCases) { filter in
+                            Text(filter.rawValue).tag(filter)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(minWidth: 150)
                 }
 
                 Spacer()

@@ -31,6 +31,17 @@ enum VisibilityFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum InvolvementFilter: String, CaseIterable, Identifiable {
+    case all = "All"
+    case createdByMe = "Created by me"
+    case assignedToMe = "Assigned to me"
+    case other = "Other"
+
+    var id: String { rawValue }
+
+    var displayName: String { rawValue }
+}
+
 enum SortOption: Identifiable {
     case createdAsc
     case createdDesc
@@ -82,11 +93,35 @@ enum SortOption: Identifiable {
 struct FilterOptions {
     var stateFilter: IssueStateFilter = .open
     var visibilityFilter: VisibilityFilter = .all
+    var involvementFilter: InvolvementFilter = .all
     var selectedRepositories: Set<String> = []
     var sortOption: SortOption = .updatedDesc
     var searchText: String = ""
 
-    func matches(issue: Issue) -> Bool {
+    func matches(issue: Issue, viewerLogin: String?) -> Bool {
+        // Check involvement filter
+        if let viewerLogin = viewerLogin {
+            switch involvementFilter {
+            case .all:
+                break
+            case .createdByMe:
+                if issue.author?.login != viewerLogin {
+                    return false
+                }
+            case .assignedToMe:
+                if !issue.assignees.contains(where: { $0.login == viewerLogin }) {
+                    return false
+                }
+            case .other:
+                // Neither created by me nor assigned to me
+                let isCreatedByMe = issue.author?.login == viewerLogin
+                let isAssignedToMe = issue.assignees.contains(where: { $0.login == viewerLogin })
+                if isCreatedByMe || isAssignedToMe {
+                    return false
+                }
+            }
+        }
+
         // Check visibility filter
         print("DEBUG FilterOptions.matches: checking issue \(issue.number), repo isPrivate: \(issue.repository.isPrivate), visibilityFilter: \(visibilityFilter)")
         switch visibilityFilter {

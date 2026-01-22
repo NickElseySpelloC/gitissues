@@ -14,7 +14,17 @@ class GitHubAPIService {
         self.graphQLClient = GraphQLClient(accessToken: accessToken)
     }
 
-    /// Fetches all issues for the authenticated user
+    /// Fetches the authenticated user's login
+    /// - Returns: The viewer's GitHub login
+    func fetchViewerLogin() async throws -> String {
+        let response: ViewerResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.viewerQuery,
+            variables: nil
+        )
+        return response.viewer.login
+    }
+
+    /// Fetches all issues involving the authenticated user using search
     /// - Parameters:
     ///   - states: Filter by issue state (open, closed, or nil for all)
     ///   - cursor: Pagination cursor for fetching next page
@@ -23,11 +33,25 @@ class GitHubAPIService {
         states: [IssueState]? = nil,
         cursor: String? = nil
     ) async throws -> (issues: [Issue], hasNextPage: Bool, endCursor: String?) {
-        var variables: [String: Any] = [:]
+        // Build search query string
+        var queryParts = ["involves:@me", "sort:updated-desc"]
 
         if let states = states {
-            variables["states"] = states.map { $0.rawValue }
+            let stateStrings = states.map { state -> String in
+                switch state {
+                case .open: return "is:open"
+                case .closed: return "is:closed"
+                }
+            }
+            if stateStrings.count == 1 {
+                queryParts.append(stateStrings[0])
+            }
+            // If both open and closed, don't add state filter (shows all)
         }
+
+        let searchQuery = queryParts.joined(separator: " ")
+
+        var variables: [String: Any] = ["query": searchQuery]
 
         if let cursor = cursor {
             variables["cursor"] = cursor
@@ -35,11 +59,11 @@ class GitHubAPIService {
 
         let response: AllIssuesResponse = try await graphQLClient.execute(
             query: GraphQLQueries.allIssuesQuery,
-            variables: variables.isEmpty ? nil : variables
+            variables: variables
         )
 
-        let issues = response.viewer.issues.nodes.map { $0.toIssue() }
-        let pageInfo = response.viewer.issues.pageInfo
+        let issues = response.search.nodes.map { $0.toIssue() }
+        let pageInfo = response.search.pageInfo
 
         return (issues, pageInfo.hasNextPage, pageInfo.endCursor)
     }
