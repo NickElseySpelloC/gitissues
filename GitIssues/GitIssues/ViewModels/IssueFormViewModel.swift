@@ -13,6 +13,7 @@ class IssueFormViewModel: ObservableObject {
     // Form fields
     @Published var title: String = ""
     @Published var body: String = ""
+    @Published var initialComment: String = ""
     @Published var selectedState: IssueState = .open
     @Published var selectedRepositoryId: String?
 
@@ -128,6 +129,15 @@ class IssueFormViewModel: ObservableObject {
                     title: title,
                     body: body.isEmpty ? nil : body
                 )
+
+                // Add initial comment if provided
+                let trimmedComment = initialComment.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedComment.isEmpty {
+                    _ = try await apiService.addComment(
+                        issueId: issue.id,
+                        body: trimmedComment
+                    )
+                }
 
             case .edit(let existingIssue):
                 // Only send changed fields

@@ -179,4 +179,77 @@ class GitHubAPIService {
 
         return response.updateIssue.issue.toIssue()
     }
+
+    /// Adds a comment to an issue
+    /// - Parameters:
+    ///   - issueId: The ID of the issue to comment on
+    ///   - body: The comment body
+    /// - Returns: The created Comment
+    func addComment(
+        issueId: String,
+        body: String
+    ) async throws -> Comment {
+        // Validate inputs
+        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedBody.isEmpty else {
+            throw NSError(domain: "GitHubAPIService", code: 400, userInfo: [
+                NSLocalizedDescriptionKey: "Comment cannot be empty"
+            ])
+        }
+
+        let variables: [String: Any] = [
+            "subjectId": issueId,
+            "body": trimmedBody
+        ]
+
+        let response: AddCommentResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.addCommentMutation,
+            variables: variables
+        )
+
+        return response.addComment.commentEdge.node.toComment()
+    }
+
+    /// Updates an existing comment
+    /// - Parameters:
+    ///   - commentId: The ID of the comment to update
+    ///   - body: The new comment body
+    /// - Returns: The updated Comment
+    func updateComment(
+        commentId: String,
+        body: String
+    ) async throws -> Comment {
+        // Validate inputs
+        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedBody.isEmpty else {
+            throw NSError(domain: "GitHubAPIService", code: 400, userInfo: [
+                NSLocalizedDescriptionKey: "Comment cannot be empty"
+            ])
+        }
+
+        let variables: [String: Any] = [
+            "id": commentId,
+            "body": trimmedBody
+        ]
+
+        let response: UpdateCommentResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.updateCommentMutation,
+            variables: variables
+        )
+
+        return response.updateIssueComment.issueComment.toComment()
+    }
+
+    /// Deletes a comment
+    /// - Parameter commentId: The ID of the comment to delete
+    func deleteComment(commentId: String) async throws {
+        let variables: [String: Any] = [
+            "id": commentId
+        ]
+
+        let _: DeleteCommentResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.deleteCommentMutation,
+            variables: variables
+        )
+    }
 }

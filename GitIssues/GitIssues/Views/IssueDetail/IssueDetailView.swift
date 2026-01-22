@@ -10,6 +10,10 @@ import SwiftUI
 struct IssueDetailView: View {
     @StateObject var viewModel: IssueDetailViewModel
     @State private var showEditSheet = false
+    @State private var showCommentSheet = false
+    @State private var commentToEdit: Comment?
+    @State private var showDeleteConfirmation = false
+    @State private var commentToDelete: Comment?
 
     var body: some View {
         ScrollView {
@@ -23,6 +27,9 @@ struct IssueDetailView: View {
                     },
                     onEditTapped: {
                         showEditSheet = true
+                    },
+                    onShareTapped: {
+                        viewModel.shareIssue()
                     }
                 )
 
@@ -56,7 +63,19 @@ struct IssueDetailView: View {
                 // Comments section
                 CommentsSection(
                     comments: viewModel.comments,
-                    isLoading: viewModel.isLoadingComments
+                    isLoading: viewModel.isLoadingComments,
+                    onAddComment: {
+                        commentToEdit = nil
+                        showCommentSheet = true
+                    },
+                    onEditComment: { comment in
+                        commentToEdit = comment
+                        showCommentSheet = true
+                    },
+                    onDeleteComment: { comment in
+                        commentToDelete = comment
+                        showDeleteConfirmation = true
+                    }
                 )
 
                 // Error message
@@ -92,6 +111,49 @@ struct IssueDetailView: View {
                 }
             }
         }
+        .sheet(isPresented: $showCommentSheet) {
+            if let comment = commentToEdit {
+                // Edit existing comment
+                let formViewModel = CommentFormViewModel(
+                    apiService: viewModel.apiService,
+                    mode: .edit(comment: comment)
+                )
+                CommentFormSheet(viewModel: formViewModel) { _ in
+                    // Refresh issue details to reload comments
+                    Task {
+                        await viewModel.loadIssueDetails()
+                    }
+                    commentToEdit = nil
+                }
+            } else {
+                // Add new comment
+                let formViewModel = CommentFormViewModel(
+                    apiService: viewModel.apiService,
+                    mode: .add(issueId: viewModel.issue.id)
+                )
+                CommentFormSheet(viewModel: formViewModel) { _ in
+                    // Refresh issue details to reload comments
+                    Task {
+                        await viewModel.loadIssueDetails()
+                    }
+                }
+            }
+        }
+        .alert("Delete Comment", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {
+                commentToDelete = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let comment = commentToDelete {
+                    Task {
+                        await viewModel.deleteComment(comment)
+                        commentToDelete = nil
+                    }
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this comment? This action cannot be undone.")
+        }
     }
 }
 
@@ -101,6 +163,7 @@ struct IssueHeaderView: View {
     let isPinned: Bool
     let onPinToggle: () -> Void
     let onEditTapped: () -> Void
+    let onShareTapped: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -150,6 +213,15 @@ struct IssueHeaderView: View {
                 }
                 .buttonStyle(.plain)
                 .help(isPinned ? "Unpin issue" : "Pin issue")
+
+                // Share button
+                Button(action: onShareTapped) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Copy GitHub URL to clipboard")
             }
         }
     }
@@ -292,6 +364,9 @@ struct IssueBodyView: View {
 struct CommentsSection: View {
     let comments: [Comment]
     let isLoading: Bool
+    let onAddComment: () -> Void
+    let onEditComment: (Comment) -> Void
+    let onDeleteComment: (Comment) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -316,9 +391,31 @@ struct CommentsSection: View {
                     .padding()
             } else {
                 ForEach(comments) { comment in
-                    CommentView(comment: comment)
+                    CommentView(
+                        comment: comment,
+                        onEdit: {
+                            onEditComment(comment)
+                        },
+                        onDelete: {
+                            onDeleteComment(comment)
+                        }
+                    )
                 }
             }
+
+            // Add comment button
+            Button {
+                onAddComment()
+            } label: {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(.accentColor)
+                    Text("Add Comment")
+                        .font(.subheadline)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 8)
         }
     }
 }
@@ -326,6 +423,8 @@ struct CommentsSection: View {
 // MARK: - Comment View
 struct CommentView: View {
     let comment: Comment
+    let onEdit: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -353,6 +452,26 @@ struct CommentView: View {
                     .foregroundColor(.secondary)
 
                 Spacer()
+
+                // Edit button
+                Button {
+                    onEdit()
+                } label: {
+                    Image(systemName: "pencil.circle")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Edit comment")
+
+                // Delete button
+                Button {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash.circle")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Delete comment")
             }
 
             Text(.init(comment.body))

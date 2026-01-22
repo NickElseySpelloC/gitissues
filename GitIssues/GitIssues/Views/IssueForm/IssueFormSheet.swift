@@ -47,6 +47,11 @@ struct IssueFormSheet: View {
                     // Body editor
                     BodySection(viewModel: viewModel)
 
+                    // Initial comment (create mode only)
+                    if viewModel.isCreateMode {
+                        InitialCommentSection(viewModel: viewModel)
+                    }
+
                     // State picker (edit mode only)
                     if !viewModel.isCreateMode {
                         StatePickerSection(viewModel: viewModel)
@@ -166,6 +171,31 @@ struct BodySection: View {
             TextEditor(text: $viewModel.body)
                 .font(.body)
                 .frame(height: 200)
+                .border(Color.secondary.opacity(0.2), width: 1)
+                .cornerRadius(4)
+        }
+    }
+}
+
+// MARK: - Initial Comment Section
+struct InitialCommentSection: View {
+    @ObservedObject var viewModel: IssueFormViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "bubble.left")
+                    .foregroundColor(.secondary)
+                Text("Initial Comment")
+                    .font(.headline)
+                Text("(optional, markdown supported)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            TextEditor(text: $viewModel.initialComment)
+                .font(.body)
+                .frame(height: 150)
                 .border(Color.secondary.opacity(0.2), width: 1)
                 .cornerRadius(4)
         }

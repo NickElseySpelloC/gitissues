@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import AppKit
 
 @MainActor
 class IssueDetailViewModel: ObservableObject {
@@ -61,5 +62,28 @@ class IssueDetailViewModel: ObservableObject {
     /// Refreshes the main issues list
     func refreshList() async {
         await listViewModel?.loadIssues()
+    }
+
+    /// Deletes a comment
+    func deleteComment(_ comment: Comment) async {
+        do {
+            try await apiService.deleteComment(commentId: comment.id)
+            // Refresh issue details to reload comments
+            await loadIssueDetails()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Shares the issue by copying its GitHub URL to the clipboard
+    func shareIssue() {
+        let owner = issue.repository.owner.login
+        let repo = issue.repository.name
+        let number = issue.number
+        let url = "https://github.com/\(owner)/\(repo)/issues/\(number)"
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(url, forType: .string)
     }
 }

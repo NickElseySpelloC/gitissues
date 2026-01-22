@@ -733,3 +733,90 @@ struct UpdateIssueResponse: Codable {
         }
     }
 }
+
+// Response structure for add comment mutation
+struct AddCommentResponse: Codable {
+    let addComment: AddCommentPayload
+
+    struct AddCommentPayload: Codable {
+        let commentEdge: CommentEdge
+    }
+
+    struct CommentEdge: Codable {
+        let node: CommentNode
+    }
+
+    struct CommentNode: Codable {
+        let id: String
+        let body: String
+        let createdAt: Date
+        let updatedAt: Date
+        let author: AuthorNode?
+
+        func toComment() -> Comment {
+            Comment(
+                id: id,
+                body: body,
+                author: author?.toUser(),
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+        }
+    }
+
+    struct AuthorNode: Codable {
+        let id: String
+        let login: String
+        let avatarUrl: String?
+
+        func toUser() -> User {
+            User(id: id, login: login, avatarUrl: avatarUrl)
+        }
+    }
+}
+
+// Response structure for update comment mutation
+struct UpdateCommentResponse: Codable {
+    let updateIssueComment: UpdateIssueCommentPayload
+
+    struct UpdateIssueCommentPayload: Codable {
+        let issueComment: CommentNode
+    }
+
+    struct CommentNode: Codable {
+        let id: String
+        let body: String
+        let createdAt: Date
+        let updatedAt: Date
+        let author: AuthorNode?
+
+        func toComment() -> Comment {
+            Comment(
+                id: id,
+                body: body,
+                author: author?.toUser(),
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+        }
+    }
+
+    struct AuthorNode: Codable {
+        let id: String
+        let login: String
+        let avatarUrl: String?
+
+        func toUser() -> User {
+            User(id: id, login: login, avatarUrl: avatarUrl)
+        }
+    }
+}
+
+// Response structure for delete comment mutation
+struct DeleteCommentResponse: Codable {
+    let deleteIssueComment: DeleteIssueCommentPayload
+
+    struct DeleteIssueCommentPayload: Codable {
+        let clientMutationId: String?
+    }
+}
