@@ -38,8 +38,9 @@ class OAuth2Manager: ObservableObject {
     @Published var isAuthenticating = false
 
     private let tokenStorage: TokenStorage
-    private let clientID: String
-    private let clientSecret: String
+    private let credentialsStorage: CredentialsStorage
+    private var clientID: String
+    private var clientSecret: String
 
     // GitHub OAuth endpoints
     private let authorizationURL = "https://github.com/login/oauth/authorize"
@@ -50,15 +51,36 @@ class OAuth2Manager: ObservableObject {
     // State for CSRF protection
     private var authState: String?
 
-    init(tokenStorage: TokenStorage? = nil) {
+    init(tokenStorage: TokenStorage? = nil, credentialsStorage: CredentialsStorage? = nil) {
         self.tokenStorage = tokenStorage ?? TokenStorage()
+        self.credentialsStorage = credentialsStorage ?? CredentialsStorage()
 
-        // Load credentials from environment variables
-        self.clientID = ProcessInfo.processInfo.environment["GITHUB_CLIENT_ID"] ?? ""
-        self.clientSecret = ProcessInfo.processInfo.environment["GITHUB_CLIENT_SECRET"] ?? ""
+        // Load credentials from Keychain first, then fall back to environment variables
+        if let storedClientID = self.credentialsStorage.getClientID(),
+           let storedClientSecret = self.credentialsStorage.getClientSecret() {
+            self.clientID = storedClientID
+            self.clientSecret = storedClientSecret
+        } else {
+            // Fall back to environment variables
+            self.clientID = ProcessInfo.processInfo.environment["GITHUB_CLIENT_ID"] ?? ""
+            self.clientSecret = ProcessInfo.processInfo.environment["GITHUB_CLIENT_SECRET"] ?? ""
+        }
 
         // Check if we already have a token
         self.isAuthenticated = self.tokenStorage.getAccessToken() != nil
+    }
+
+    /// Reloads credentials from storage (called after settings are updated)
+    func reloadCredentials() {
+        if let storedClientID = credentialsStorage.getClientID(),
+           let storedClientSecret = credentialsStorage.getClientSecret() {
+            self.clientID = storedClientID
+            self.clientSecret = storedClientSecret
+        } else {
+            // Fall back to environment variables
+            self.clientID = ProcessInfo.processInfo.environment["GITHUB_CLIENT_ID"] ?? ""
+            self.clientSecret = ProcessInfo.processInfo.environment["GITHUB_CLIENT_SECRET"] ?? ""
+        }
     }
 
     /// Initiates the OAuth authorization flow
