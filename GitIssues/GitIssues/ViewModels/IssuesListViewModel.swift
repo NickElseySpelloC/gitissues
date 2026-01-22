@@ -20,6 +20,7 @@ class IssuesListViewModel: ObservableObject {
 
     private let apiService: GitHubAPIService
     let pinningService: PinningService // Made public so detail view can access it
+    private let appStateService = AppStateService()
     private var cancellables = Set<AnyCancellable>()
 
     init(accessToken: String) {
@@ -27,12 +28,25 @@ class IssuesListViewModel: ObservableObject {
         self.pinningService = PinningService()
         self.pinnedIssueIDs = pinningService.getPinnedIssues()
 
+        // Restore saved filter state
+        if let savedFilterOptions = appStateService.loadFilterState() {
+            self.filterOptions = savedFilterOptions
+        }
+
         // Observe filter changes and refilter
         Publishers.CombineLatest4($filterOptions, $allIssues, $pinnedIssueIDs, $viewerLogin)
             .map { filterOptions, allIssues, pinnedIDs, viewerLogin in
                 Self.applyFiltersAndSort(filterOptions: filterOptions, to: allIssues, pinnedIDs: pinnedIDs, viewerLogin: viewerLogin)
             }
             .assign(to: &$filteredIssues)
+
+        // Save filter state whenever it changes
+        $filterOptions
+            .dropFirst() // Skip initial value
+            .sink { [weak self] newFilterOptions in
+                self?.appStateService.saveFilterState(newFilterOptions)
+            }
+            .store(in: &cancellables)
     }
 
     /// Loads issues from the API

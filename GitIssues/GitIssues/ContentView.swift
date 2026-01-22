@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var authManager: OAuth2Manager
@@ -16,9 +17,18 @@ struct ContentView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showCreateIssue = false
     @State private var issueToEdit: Issue?
+    @State private var sidebarWidth: CGFloat?
+
+    private let appStateService = AppStateService()
 
     init() {
         _viewModel = StateObject(wrappedValue: IssuesListViewModelWrapper())
+
+        // Restore sidebar width
+        let service = AppStateService()
+        if let savedWidth = service.getSidebarWidth() {
+            _sidebarWidth = State(initialValue: CGFloat(savedWidth))
+        }
     }
 
     var body: some View {
@@ -145,7 +155,11 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("GitIssues")
-            .navigationSplitViewColumnWidth(min: 400, ideal: 600, max: 800)
+            .navigationSplitViewColumnWidth(
+                min: 400,
+                ideal: sidebarWidth ?? 600,
+                max: 800
+            )
             .toolbar(content: {
                 ToolbarItemGroup(placement: .automatic) {
                     Button {
@@ -252,7 +266,37 @@ struct ContentView: View {
                 EmptyView()
             }
         }
+        .background(WindowAccessor { window in
+            // Use macOS native window frame autosave
+            window.setFrameAutosaveName("MainWindow")
+        })
+        .onReceive(NotificationCenter.default.publisher(for: NSSplitView.didResizeSubviewsNotification)) { notification in
+            // Save sidebar width when split view is resized
+            if let splitView = notification.object as? NSSplitView,
+               splitView.subviews.count > 0 {
+                let width = splitView.subviews[0].frame.width
+                sidebarWidth = width
+                appStateService.saveSidebarWidth(Double(width))
+            }
+        }
     }
+}
+
+// Helper view to access NSWindow
+struct WindowAccessor: NSViewRepresentable {
+    let onWindowConfigured: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let window = view.window {
+                self.onWindowConfigured(window)
+            }
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
 struct IssueRow: View {
