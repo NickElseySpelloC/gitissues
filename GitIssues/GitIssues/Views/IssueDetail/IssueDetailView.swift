@@ -14,6 +14,7 @@ struct IssueDetailView: View {
     @State private var commentToEdit: Comment?
     @State private var showDeleteConfirmation = false
     @State private var commentToDelete: Comment?
+    @State private var isShareAnimating = false
 
     var body: some View {
         ScrollView {
@@ -22,6 +23,7 @@ struct IssueDetailView: View {
                 IssueHeaderView(
                     issue: viewModel.issue,
                     isPinned: viewModel.isPinned,
+                    isShareAnimating: isShareAnimating,
                     onPinToggle: {
                         viewModel.togglePin()
                     },
@@ -30,6 +32,16 @@ struct IssueDetailView: View {
                     },
                     onShareTapped: {
                         viewModel.shareIssue()
+                        // Animate the share button
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isShareAnimating = true
+                        }
+                        // Reset after delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isShareAnimating = false
+                            }
+                        }
                     }
                 )
 
@@ -161,6 +173,7 @@ struct IssueDetailView: View {
 struct IssueHeaderView: View {
     let issue: Issue
     let isPinned: Bool
+    let isShareAnimating: Bool
     let onPinToggle: () -> Void
     let onEditTapped: () -> Void
     let onShareTapped: () -> Void
@@ -218,7 +231,7 @@ struct IssueHeaderView: View {
                 Button(action: onShareTapped) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.title2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(isShareAnimating ? .accentColor : .secondary)
                 }
                 .buttonStyle(.plain)
                 .help("Copy GitHub URL to clipboard")
