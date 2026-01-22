@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var searchText = ""
     @State private var selectedIssue: Issue?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var showCreateIssue = false
+    @State private var issueToEdit: Issue?
 
     init() {
         _viewModel = StateObject(wrappedValue: IssuesListViewModelWrapper())
@@ -119,11 +121,22 @@ struct ContentView: View {
                                     }
                                 )
                                 .tag(issue)
-                                .onTapGesture {
-                                    selectedIssue = issue
+                                .contextMenu {
+                                    Button {
+                                        issueToEdit = issue
+                                    } label: {
+                                        SwiftUI.Label("Edit Issue", systemImage: "pencil")
+                                    }
                                 }
                             }
                             .listStyle(.sidebar)
+                            .onKeyPress(.return) {
+                                if let selected = selectedIssue {
+                                    issueToEdit = selected
+                                    return .handled
+                                }
+                                return .ignored
+                            }
                         }
                     } else {
                         ProgressView("Initializing...")
@@ -135,6 +148,14 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(min: 400, ideal: 600, max: 800)
             .toolbar(content: {
                 ToolbarItemGroup(placement: .automatic) {
+                    Button {
+                        showCreateIssue = true
+                    } label: {
+                        SwiftUI.Label("New Issue", systemImage: "plus")
+                    }
+                    .disabled(viewModel.viewModel == nil)
+                    .help("Create new issue")
+
                     Button {
                         Task { await viewModel.viewModel?.loadIssues() }
                     } label: {
@@ -164,6 +185,12 @@ struct ContentView: View {
                 )
                 IssueDetailView(viewModel: detailViewModel)
                     .id(selectedIssue.id) // Force view recreation when selection changes
+                    .onChange(of: vm.allIssues) { _, newIssues in
+                        // Update selected issue to the refreshed version after list changes
+                        if let currentId = self.selectedIssue?.id {
+                            self.selectedIssue = newIssues.first { $0.id == currentId }
+                        }
+                    }
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "doc.text.magnifyingglass")
@@ -182,6 +209,47 @@ struct ContentView: View {
                 let newViewModel = IssuesListViewModel(accessToken: accessToken)
                 viewModel.viewModel = newViewModel
                 await newViewModel.loadIssues()
+            }
+        }
+        .sheet(isPresented: $showCreateIssue) {
+            if let accessToken = authManager.getAccessToken(),
+               let vm = viewModel.viewModel {
+                let apiService = GitHubAPIService(accessToken: accessToken)
+                let formViewModel = IssueFormViewModel(
+                    apiService: apiService,
+                    mode: .create(availableRepositories: vm.availableRepositories)
+                )
+                IssueFormSheet(viewModel: formViewModel) { createdIssue in
+                    // Refresh the issues list
+                    Task {
+                        await vm.loadIssues()
+                    }
+                }
+            }
+        }
+        .sheet(item: $issueToEdit) { issue in
+            if let accessToken = authManager.getAccessToken(),
+               let vm = viewModel.viewModel {
+                let apiService = GitHubAPIService(accessToken: accessToken)
+                let formViewModel = IssueFormViewModel(
+                    apiService: apiService,
+                    mode: .edit(issue: issue)
+                )
+                IssueFormSheet(viewModel: formViewModel) { updatedIssue in
+                    // Refresh the issues list to reflect changes
+                    Task {
+                        await vm.loadIssues()
+                        // Update the selected issue to the refreshed version from the list
+                        if let currentSelectedId = selectedIssue?.id {
+                            selectedIssue = vm.allIssues.first { $0.id == currentSelectedId }
+                        }
+                    }
+                    // Clear the edit state
+                    issueToEdit = nil
+                }
+            } else {
+                // Fallback empty view if requirements aren't met
+                EmptyView()
             }
         }
     }

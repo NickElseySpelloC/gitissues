@@ -16,7 +16,7 @@ class IssueDetailViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isPinned: Bool
 
-    private let apiService: GitHubAPIService
+    let apiService: GitHubAPIService
     private let pinningService: PinningService
     private weak var listViewModel: IssuesListViewModel?
 
@@ -56,5 +56,10 @@ class IssueDetailViewModel: ObservableObject {
 
         // Update the list view model's pinned IDs
         listViewModel?.pinnedIssueIDs = pinningService.getPinnedIssues()
+    }
+
+    /// Refreshes the main issues list
+    func refreshList() async {
+        await listViewModel?.loadIssues()
     }
 }

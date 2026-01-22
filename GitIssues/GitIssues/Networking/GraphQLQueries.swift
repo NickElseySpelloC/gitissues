@@ -124,6 +124,155 @@ struct GraphQLQueries {
       }
     }
     """
+
+    /// Mutation to create a new issue
+    static let createIssueMutation = """
+    mutation CreateIssue($repositoryId: ID!, $title: String!, $body: String) {
+      createIssue(input: {repositoryId: $repositoryId, title: $title, body: $body}) {
+        issue {
+          id
+          number
+          title
+          body
+          state
+          createdAt
+          updatedAt
+          repository {
+            id
+            name
+            owner {
+              id
+              login
+              avatarUrl
+            }
+            isPrivate
+          }
+          labels(first: 10) {
+            nodes {
+              id
+              name
+              color
+            }
+          }
+          assignees(first: 10) {
+            nodes {
+              id
+              login
+              avatarUrl
+            }
+          }
+          author {
+            ... on User {
+              id
+              login
+              avatarUrl
+            }
+          }
+        }
+      }
+    }
+    """
+
+    /// Mutation to update an existing issue
+    static let updateIssueMutation = """
+    mutation UpdateIssue($id: ID!, $title: String, $body: String, $state: IssueState) {
+      updateIssue(input: {id: $id, title: $title, body: $body, state: $state}) {
+        issue {
+          id
+          number
+          title
+          body
+          state
+          createdAt
+          updatedAt
+          repository {
+            id
+            name
+            owner {
+              id
+              login
+              avatarUrl
+            }
+            isPrivate
+          }
+          labels(first: 10) {
+            nodes {
+              id
+              name
+              color
+            }
+          }
+          assignees(first: 10) {
+            nodes {
+              id
+              login
+              avatarUrl
+            }
+          }
+          author {
+            ... on User {
+              id
+              login
+              avatarUrl
+            }
+          }
+        }
+      }
+    }
+    """
+
+    /// Mutation to add a comment to an issue
+    static let addCommentMutation = """
+    mutation AddComment($subjectId: ID!, $body: String!) {
+      addComment(input: {subjectId: $subjectId, body: $body}) {
+        commentEdge {
+          node {
+            id
+            body
+            createdAt
+            updatedAt
+            author {
+              ... on User {
+                id
+                login
+                avatarUrl
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+    /// Mutation to update a comment
+    static let updateCommentMutation = """
+    mutation UpdateComment($id: ID!, $body: String!) {
+      updateIssueComment(input: {id: $id, body: $body}) {
+        issueComment {
+          id
+          body
+          createdAt
+          updatedAt
+          author {
+            ... on User {
+              id
+              login
+              avatarUrl
+            }
+          }
+        }
+      }
+    }
+    """
+
+    /// Mutation to delete a comment
+    static let deleteCommentMutation = """
+    mutation DeleteComment($id: ID!) {
+      deleteIssueComment(input: {id: $id}) {
+        clientMutationId
+      }
+    }
+    """
 }
 
 // Response structures for GraphQL queries
@@ -369,6 +518,212 @@ struct IssueDetailResponse: Codable {
     }
 
     struct CommentAuthorNode: Codable {
+        let id: String
+        let login: String
+        let avatarUrl: String?
+
+        func toUser() -> User {
+            User(id: id, login: login, avatarUrl: avatarUrl)
+        }
+    }
+}
+
+// Response structure for create issue mutation
+struct CreateIssueResponse: Codable {
+    let createIssue: CreateIssuePayload
+
+    struct CreateIssuePayload: Codable {
+        let issue: IssueNode
+    }
+
+    struct IssueNode: Codable {
+        let id: String
+        let number: Int
+        let title: String
+        let body: String?
+        let state: IssueState
+        let createdAt: Date
+        let updatedAt: Date
+        let repository: RepositoryNode
+        let labels: LabelsConnection
+        let assignees: AssigneesConnection
+        let author: AuthorNode?
+
+        func toIssue() -> Issue {
+            Issue(
+                id: id,
+                number: number,
+                title: title,
+                body: body,
+                state: state,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                repository: repository.toRepository(),
+                labels: labels.nodes.map { $0.toLabel() },
+                assignees: assignees.nodes.map { $0.toUser() },
+                author: author?.toUser()
+            )
+        }
+    }
+
+    struct RepositoryNode: Codable {
+        let id: String
+        let name: String
+        let owner: OwnerNode
+        let isPrivate: Bool
+
+        func toRepository() -> Repository {
+            Repository(
+                id: id,
+                name: name,
+                owner: owner.toUser(),
+                isPrivate: isPrivate
+            )
+        }
+    }
+
+    struct OwnerNode: Codable {
+        let id: String
+        let login: String
+        let avatarUrl: String?
+
+        func toUser() -> User {
+            User(id: id, login: login, avatarUrl: avatarUrl)
+        }
+    }
+
+    struct LabelsConnection: Codable {
+        let nodes: [LabelNode]
+    }
+
+    struct LabelNode: Codable {
+        let id: String
+        let name: String
+        let color: String
+
+        func toLabel() -> Label {
+            Label(id: id, name: name, color: color)
+        }
+    }
+
+    struct AssigneesConnection: Codable {
+        let nodes: [AssigneeNode]
+    }
+
+    struct AssigneeNode: Codable {
+        let id: String
+        let login: String
+        let avatarUrl: String?
+
+        func toUser() -> User {
+            User(id: id, login: login, avatarUrl: avatarUrl)
+        }
+    }
+
+    struct AuthorNode: Codable {
+        let id: String
+        let login: String
+        let avatarUrl: String?
+
+        func toUser() -> User {
+            User(id: id, login: login, avatarUrl: avatarUrl)
+        }
+    }
+}
+
+// Response structure for update issue mutation
+struct UpdateIssueResponse: Codable {
+    let updateIssue: UpdateIssuePayload
+
+    struct UpdateIssuePayload: Codable {
+        let issue: IssueNode
+    }
+
+    struct IssueNode: Codable {
+        let id: String
+        let number: Int
+        let title: String
+        let body: String?
+        let state: IssueState
+        let createdAt: Date
+        let updatedAt: Date
+        let repository: RepositoryNode
+        let labels: LabelsConnection
+        let assignees: AssigneesConnection
+        let author: AuthorNode?
+
+        func toIssue() -> Issue {
+            Issue(
+                id: id,
+                number: number,
+                title: title,
+                body: body,
+                state: state,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                repository: repository.toRepository(),
+                labels: labels.nodes.map { $0.toLabel() },
+                assignees: assignees.nodes.map { $0.toUser() },
+                author: author?.toUser()
+            )
+        }
+    }
+
+    struct RepositoryNode: Codable {
+        let id: String
+        let name: String
+        let owner: OwnerNode
+        let isPrivate: Bool
+
+        func toRepository() -> Repository {
+            Repository(
+                id: id,
+                name: name,
+                owner: owner.toUser(),
+                isPrivate: isPrivate
+            )
+        }
+    }
+
+    struct OwnerNode: Codable {
+        let id: String
+        let login: String
+        let avatarUrl: String?
+
+        func toUser() -> User {
+            User(id: id, login: login, avatarUrl: avatarUrl)
+        }
+    }
+
+    struct LabelsConnection: Codable {
+        let nodes: [LabelNode]
+    }
+
+    struct LabelNode: Codable {
+        let id: String
+        let name: String
+        let color: String
+
+        func toLabel() -> Label {
+            Label(id: id, name: name, color: color)
+        }
+    }
+
+    struct AssigneesConnection: Codable {
+        let nodes: [AssigneeNode]
+    }
+
+    struct AssigneeNode: Codable {
+        let id: String
+        let login: String
+        let avatarUrl: String?
+
+        func toUser() -> User {
+            User(id: id, login: login, avatarUrl: avatarUrl)
+        }
+    }
+
+    struct AuthorNode: Codable {
         let id: String
         let login: String
         let avatarUrl: String?

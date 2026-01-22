@@ -9,14 +9,22 @@ import SwiftUI
 
 struct IssueDetailView: View {
     @StateObject var viewModel: IssueDetailViewModel
+    @State private var showEditSheet = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // Header
-                IssueHeaderView(issue: viewModel.issue, isPinned: viewModel.isPinned) {
-                    viewModel.togglePin()
-                }
+                IssueHeaderView(
+                    issue: viewModel.issue,
+                    isPinned: viewModel.isPinned,
+                    onPinToggle: {
+                        viewModel.togglePin()
+                    },
+                    onEditTapped: {
+                        showEditSheet = true
+                    }
+                )
 
                 Divider()
 
@@ -69,6 +77,21 @@ struct IssueDetailView: View {
         .task {
             await viewModel.loadIssueDetails()
         }
+        .sheet(isPresented: $showEditSheet) {
+            let formViewModel = IssueFormViewModel(
+                apiService: viewModel.apiService,
+                mode: .edit(issue: viewModel.issue)
+            )
+            IssueFormSheet(viewModel: formViewModel) { updatedIssue in
+                // Update local issue and refresh details
+                viewModel.issue = updatedIssue
+                Task {
+                    await viewModel.loadIssueDetails()
+                    // Also refresh the main issues list
+                    await viewModel.refreshList()
+                }
+            }
+        }
     }
 }
 
@@ -77,6 +100,7 @@ struct IssueHeaderView: View {
     let issue: Issue
     let isPinned: Bool
     let onPinToggle: () -> Void
+    let onEditTapped: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -108,6 +132,15 @@ struct IssueHeaderView: View {
                 }
 
                 Spacer()
+
+                // Edit button
+                Button(action: onEditTapped) {
+                    Text("Edit")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                }
+                .buttonStyle(.bordered)
+                .help("Edit issue")
 
                 // Pin button
                 Button(action: onPinToggle) {
