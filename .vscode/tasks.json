@@ -1,0 +1,48 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build GitIssues",
+      "type": "shell",
+      "command": "xcodebuild",
+      "args": [
+        "-scheme",
+        "GitIssues",
+        "-project",
+        "GitIssues/GitIssues.xcodeproj",
+        "-configuration",
+        "Debug",
+        "-derivedDataPath",
+        "${workspaceFolder}/build",
+        "build"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Run GitIssues",
+      "type": "shell",
+      "command": "open",
+      "args": [
+        "${workspaceFolder}/build/Build/Products/Debug/GitIssues.app"
+      ],
+      "dependsOn": [
+        "Build GitIssues"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Clean Build",
+      "type": "shell",
+      "command": "rm -rf ${workspaceFolder}/build",
+      "problemMatcher": []
+    }
+  ]
+}
