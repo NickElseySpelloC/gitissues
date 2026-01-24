@@ -27,15 +27,20 @@ class GitHubAPIService {
     /// Fetches all issues involving the authenticated user using search
     /// - Parameters:
     ///   - states: Filter by issue state (open, closed, or nil for all)
+    ///   - repositoryFullNames: Filter by specific repositories (e.g., ["owner/repo1", "owner/repo2"])
+    ///   - visibility: Filter by repository visibility (public, private, or nil for all)
     ///   - cursor: Pagination cursor for fetching next page
     /// - Returns: Array of issues and pagination info
     func fetchIssues(
         states: [IssueState]? = nil,
+        repositoryFullNames: [String]? = nil,
+        visibility: String? = nil,
         cursor: String? = nil
     ) async throws -> (issues: [Issue], hasNextPage: Bool, endCursor: String?) {
         // Build search query string
         var queryParts = ["involves:@me", "sort:updated-desc"]
 
+        // Add state filter
         if let states = states {
             let stateStrings = states.map { state -> String in
                 switch state {
@@ -47,6 +52,17 @@ class GitHubAPIService {
                 queryParts.append(stateStrings[0])
             }
             // If both open and closed, don't add state filter (shows all)
+        }
+
+        // Add repository filter
+        if let repos = repositoryFullNames, !repos.isEmpty {
+            let repoQuery = repos.map { "repo:\($0)" }.joined(separator: " ")
+            queryParts.append(repoQuery)
+        }
+
+        // Add visibility filter
+        if let visibility = visibility {
+            queryParts.append("is:\(visibility)")
         }
 
         let searchQuery = queryParts.joined(separator: " ")
@@ -69,9 +85,16 @@ class GitHubAPIService {
     }
 
     /// Fetches all issues across all pages
-    /// - Parameter states: Filter by issue state (open, closed, or nil for all)
+    /// - Parameters:
+    ///   - states: Filter by issue state (open, closed, or nil for all)
+    ///   - repositoryFullNames: Filter by specific repositories (e.g., ["owner/repo1", "owner/repo2"])
+    ///   - visibility: Filter by repository visibility (public, private, or nil for all)
     /// - Returns: Array of all issues
-    func fetchAllIssues(states: [IssueState]? = nil) async throws -> [Issue] {
+    func fetchAllIssues(
+        states: [IssueState]? = nil,
+        repositoryFullNames: [String]? = nil,
+        visibility: String? = nil
+    ) async throws -> [Issue] {
         var allIssues: [Issue] = []
         var cursor: String? = nil
         var hasNextPage = true
@@ -79,6 +102,8 @@ class GitHubAPIService {
         while hasNextPage {
             let (issues, nextPage, nextCursor) = try await fetchIssues(
                 states: states,
+                repositoryFullNames: repositoryFullNames,
+                visibility: visibility,
                 cursor: cursor
             )
 

@@ -60,8 +60,8 @@ class IssueDetailViewModel: ObservableObject {
     }
 
     /// Refreshes the main issues list
-    func refreshList() async {
-        await listViewModel?.loadIssues()
+    func refreshList(afterDelay delay: TimeInterval = 0) async {
+        await listViewModel?.loadIssues(afterDelay: delay)
     }
 
     /// Deletes a comment
@@ -91,8 +91,8 @@ class IssueDetailViewModel: ObservableObject {
     func deleteIssue() async {
         do {
             try await apiService.deleteIssue(issueId: issue.id)
-            // Refresh the main issues list
-            await refreshList()
+            // Refresh the main issues list with delay to allow GitHub to process
+            await refreshList(afterDelay: 1.5)
         } catch {
             errorMessage = error.localizedDescription
         }

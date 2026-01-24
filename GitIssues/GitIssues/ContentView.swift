@@ -245,9 +245,9 @@ struct ContentView: View {
                     mode: .create
                 )
                 IssueFormSheet(viewModel: formViewModel) { createdIssue in
-                    // Refresh the issues list
+                    // Refresh the issues list with delay to allow GitHub to process
                     Task {
-                        await vm.loadIssues()
+                        await vm.loadIssues(afterDelay: 1.5)
                     }
                 }
             }
@@ -263,7 +263,7 @@ struct ContentView: View {
                 IssueFormSheet(viewModel: formViewModel) { updatedIssue in
                     // Refresh the issues list to reflect changes
                     Task {
-                        await vm.loadIssues()
+                        await vm.loadIssues(afterDelay: 1.5)
                         // Update the selected issue to the refreshed version from the list
                         if let currentSelectedId = selectedIssue?.id {
                             selectedIssue = vm.allIssues.first { $0.id == currentSelectedId }
@@ -300,8 +300,8 @@ struct ContentView: View {
                         let apiService = GitHubAPIService(accessToken: accessToken)
                         do {
                             try await apiService.deleteIssue(issueId: issue.id)
-                            // Refresh issues list
-                            await viewModel.viewModel?.loadIssues()
+                            // Refresh issues list with delay to allow GitHub to process
+                            await viewModel.viewModel?.loadIssues(afterDelay: 1.5)
                             // Clear selection if we deleted the selected issue
                             if selectedIssue?.id == issue.id {
                                 selectedIssue = nil

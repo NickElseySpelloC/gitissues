@@ -49,9 +49,15 @@ class IssuesListViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    /// Loads issues from the API
-    func loadIssues() async {
-        print("DEBUG: Starting loadIssues()")
+    /// Loads issues from the API with optional delay for GitHub sync
+    func loadIssues(afterDelay delay: TimeInterval = 0) async {
+        print("DEBUG: Starting loadIssues() with delay: \(delay)s")
+
+        // Add delay if requested (for GitHub sync after create/delete)
+        if delay > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+
         isLoading = true
         errorMessage = nil
 
@@ -63,8 +69,23 @@ class IssuesListViewModel: ObservableObject {
                 print("DEBUG: Viewer login: \(viewerLogin ?? "nil")")
             }
 
-            print("DEBUG: Fetching issues with states: \(String(describing: filterOptions.stateFilter.issueStates))")
-            let issues = try await apiService.fetchAllIssues(states: filterOptions.stateFilter.issueStates)
+            // Build visibility filter for server-side query
+            var visibility: String? = nil
+            switch filterOptions.visibilityFilter {
+            case .all:
+                visibility = nil
+            case .publicRepos:
+                visibility = "public"
+            case .privateRepos:
+                visibility = "private"
+            }
+
+            print("DEBUG: Fetching issues with states: \(String(describing: filterOptions.stateFilter.issueStates)), visibility: \(visibility ?? "all")")
+            let issues = try await apiService.fetchAllIssues(
+                states: filterOptions.stateFilter.issueStates,
+                repositoryFullNames: nil, // Keep repository filtering client-side
+                visibility: visibility
+            )
             print("DEBUG: Fetched \(issues.count) issues")
             self.allIssues = issues
             self.isLoading = false
@@ -126,10 +147,12 @@ class IssuesListViewModel: ObservableObject {
     /// Updates the visibility filter
     func setVisibilityFilter(_ filter: VisibilityFilter) {
         print("DEBUG: setVisibilityFilter called with \(filter)")
-        var options = filterOptions
-        options.visibilityFilter = filter
-        filterOptions = options
-        print("DEBUG: filterOptions updated, filtered issues count: \(filteredIssues.count)")
+        filterOptions.visibilityFilter = filter
+
+        // Reload issues with new visibility filter (server-side)
+        Task {
+            await loadIssues()
+        }
     }
 
     /// Updates the involvement filter

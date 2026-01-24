@@ -122,22 +122,8 @@ struct FilterOptions {
             }
         }
 
-        // Check visibility filter
-        print("DEBUG FilterOptions.matches: checking issue \(issue.number), repo isPrivate: \(issue.repository.isPrivate), visibilityFilter: \(visibilityFilter)")
-        switch visibilityFilter {
-        case .all:
-            break
-        case .publicRepos:
-            if issue.repository.isPrivate {
-                print("DEBUG: Filtering OUT private issue \(issue.number)")
-                return false
-            }
-        case .privateRepos:
-            if !issue.repository.isPrivate {
-                print("DEBUG: Filtering OUT public issue \(issue.number)")
-                return false
-            }
-        }
+        // Visibility filter is now applied server-side in the API query
+        // No need for client-side filtering
 
         // Check repository filter
         if !selectedRepositories.isEmpty {

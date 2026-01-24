@@ -122,8 +122,8 @@ struct IssueDetailView: View {
                 viewModel.issue = updatedIssue
                 Task {
                     await viewModel.loadIssueDetails()
-                    // Also refresh the main issues list
-                    await viewModel.refreshList()
+                    // Also refresh the main issues list with delay
+                    await viewModel.refreshList(afterDelay: 1.5)
                 }
             }
         }
