@@ -9,8 +9,10 @@ import Foundation
 
 class GitHubAPIService {
     private let graphQLClient: GraphQLClient
+    private let accessToken: String
 
     init(accessToken: String) {
+        self.accessToken = accessToken
         self.graphQLClient = GraphQLClient(accessToken: accessToken)
     }
 
@@ -440,5 +442,38 @@ class GitHubAPIService {
             query: GraphQLQueries.removeLabelsFromIssueMutation,
             variables: variables
         )
+    }
+
+    /// Renders markdown text to HTML using GitHub's rendering API
+    /// - Parameter markdown: The markdown text to render
+    /// - Returns: Rendered HTML string
+    func renderMarkdown(_ markdown: String) async throws -> String {
+        guard let url = URL(string: "https://api.github.com/markdown") else {
+            throw NSError(domain: "GitHubAPIService", code: 400, userInfo: [
+                NSLocalizedDescriptionKey: "Invalid URL"
+            ])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "text": markdown,
+            "mode": "gfm"
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let html = String(data: data, encoding: .utf8) else {
+            throw NSError(domain: "GitHubAPIService", code: 500, userInfo: [
+                NSLocalizedDescriptionKey: "Failed to decode HTML response"
+            ])
+        }
+
+        return html
     }
 }

@@ -68,7 +68,7 @@ struct IssueDetailView: View {
 
                 // Issue body
                 if let body = viewModel.issue.body, !body.isEmpty {
-                    IssueBodyView(bodyText: body, author: viewModel.issue.author)
+                    IssueBodyView(bodyText: body, author: viewModel.issue.author, apiService: viewModel.apiService)
                 } else {
                     Text("No description provided")
                         .foregroundColor(.secondary)
@@ -80,6 +80,7 @@ struct IssueDetailView: View {
                 CommentsSection(
                     comments: viewModel.comments,
                     isLoading: viewModel.isLoadingComments,
+                    apiService: viewModel.apiService,
                     onAddComment: {
                         commentToEdit = nil
                         showCommentSheet = true
@@ -391,6 +392,7 @@ struct AssigneesSection: View {
 struct IssueBodyView: View {
     let bodyText: String
     let author: User?
+    let apiService: GitHubAPIService
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -411,11 +413,10 @@ struct IssueBodyView: View {
                     .foregroundColor(.secondary)
             }
 
-            // Use markdown rendering
-            Text(.init(bodyText))
-                .textSelection(.enabled)
+            // Use GitHub markdown rendering
+            MarkdownRenderView(markdown: bodyText, apiService: apiService)
+                .frame(maxWidth: .infinity, minHeight: 100, alignment: .leading)
                 .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(nsColor: .textBackgroundColor))
                 .cornerRadius(8)
         }
@@ -426,6 +427,7 @@ struct IssueBodyView: View {
 struct CommentsSection: View {
     let comments: [Comment]
     let isLoading: Bool
+    let apiService: GitHubAPIService
     let onAddComment: () -> Void
     let onEditComment: (Comment) -> Void
     let onDeleteComment: (Comment) -> Void
@@ -455,6 +457,7 @@ struct CommentsSection: View {
                 ForEach(comments) { comment in
                     CommentView(
                         comment: comment,
+                        apiService: apiService,
                         onEdit: {
                             onEditComment(comment)
                         },
@@ -485,6 +488,7 @@ struct CommentsSection: View {
 // MARK: - Comment View
 struct CommentView: View {
     let comment: Comment
+    let apiService: GitHubAPIService
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -536,10 +540,10 @@ struct CommentView: View {
                 .help("Delete comment")
             }
 
-            Text(.init(comment.body))
-                .textSelection(.enabled)
+            // Use GitHub markdown rendering
+            MarkdownRenderView(markdown: comment.body, apiService: apiService)
+                .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
                 .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(nsColor: .textBackgroundColor))
                 .cornerRadius(8)
         }
