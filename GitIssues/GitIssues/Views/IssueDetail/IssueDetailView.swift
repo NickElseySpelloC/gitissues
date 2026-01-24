@@ -134,25 +134,50 @@ struct IssueDetailView: View {
                     apiService: viewModel.apiService,
                     mode: .edit(comment: comment)
                 )
-                CommentFormSheet(viewModel: formViewModel) { _ in
-                    // Refresh issue details to reload comments
-                    Task {
-                        await viewModel.loadIssueDetails()
-                    }
-                    commentToEdit = nil
-                }
+                CommentFormSheet(
+                    viewModel: formViewModel,
+                    onSuccess: { _ in
+                        // Refresh issue details to reload comments
+                        Task {
+                            await viewModel.loadIssueDetails()
+                        }
+                        commentToEdit = nil
+                    },
+                    onSuccessAndClose: { _ in
+                        // Save comment and close issue
+                        Task {
+                            await viewModel.closeIssue()
+                            await viewModel.loadIssueDetails()
+                            await viewModel.refreshList(afterDelay: 1.5)
+                        }
+                        commentToEdit = nil
+                    },
+                    currentIssue: viewModel.issue
+                )
             } else {
                 // Add new comment
                 let formViewModel = CommentFormViewModel(
                     apiService: viewModel.apiService,
                     mode: .add(issueId: viewModel.issue.id)
                 )
-                CommentFormSheet(viewModel: formViewModel) { _ in
-                    // Refresh issue details to reload comments
-                    Task {
-                        await viewModel.loadIssueDetails()
-                    }
-                }
+                CommentFormSheet(
+                    viewModel: formViewModel,
+                    onSuccess: { _ in
+                        // Refresh issue details to reload comments
+                        Task {
+                            await viewModel.loadIssueDetails()
+                        }
+                    },
+                    onSuccessAndClose: { _ in
+                        // Save comment and close issue
+                        Task {
+                            await viewModel.closeIssue()
+                            await viewModel.loadIssueDetails()
+                            await viewModel.refreshList(afterDelay: 1.5)
+                        }
+                    },
+                    currentIssue: viewModel.issue
+                )
             }
         }
         .alert("Delete Comment", isPresented: $showDeleteConfirmation) {

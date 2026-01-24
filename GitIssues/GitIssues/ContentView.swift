@@ -140,6 +140,51 @@ struct ContentView: View {
                                         SwiftUI.Label("Edit Issue", systemImage: "pencil")
                                     }
 
+                                    // Close/Reopen issue based on current state
+                                    if issue.state == .open {
+                                        Button {
+                                            Task {
+                                                if let accessToken = authManager.getAccessToken() {
+                                                    let apiService = GitHubAPIService(accessToken: accessToken)
+                                                    do {
+                                                        _ = try await apiService.updateIssue(
+                                                            issueId: issue.id,
+                                                            title: nil,
+                                                            body: nil,
+                                                            state: .closed
+                                                        )
+                                                        await viewModel.viewModel?.loadIssues(afterDelay: 1.5)
+                                                    } catch {
+                                                        print("Error closing issue: \(error)")
+                                                    }
+                                                }
+                                            }
+                                        } label: {
+                                            SwiftUI.Label("Close Issue", systemImage: "checkmark.circle")
+                                        }
+                                    } else {
+                                        Button {
+                                            Task {
+                                                if let accessToken = authManager.getAccessToken() {
+                                                    let apiService = GitHubAPIService(accessToken: accessToken)
+                                                    do {
+                                                        _ = try await apiService.updateIssue(
+                                                            issueId: issue.id,
+                                                            title: nil,
+                                                            body: nil,
+                                                            state: .open
+                                                        )
+                                                        await viewModel.viewModel?.loadIssues(afterDelay: 1.5)
+                                                    } catch {
+                                                        print("Error reopening issue: \(error)")
+                                                    }
+                                                }
+                                            }
+                                        } label: {
+                                            SwiftUI.Label("Reopen Issue", systemImage: "arrow.counterclockwise.circle")
+                                        }
+                                    }
+
                                     Divider()
 
                                     Button(role: .destructive) {

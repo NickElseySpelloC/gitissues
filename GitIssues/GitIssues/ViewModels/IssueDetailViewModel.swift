@@ -87,6 +87,36 @@ class IssueDetailViewModel: ObservableObject {
         pasteboard.setString(url, forType: .string)
     }
 
+    /// Closes the issue (sets state to closed)
+    func closeIssue() async {
+        do {
+            let updatedIssue = try await apiService.updateIssue(
+                issueId: issue.id,
+                title: nil,
+                body: nil,
+                state: .closed
+            )
+            self.issue = updatedIssue
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Reopens the issue (sets state to open)
+    func reopenIssue() async {
+        do {
+            let updatedIssue = try await apiService.updateIssue(
+                issueId: issue.id,
+                title: nil,
+                body: nil,
+                state: .open
+            )
+            self.issue = updatedIssue
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     /// Deletes the issue
     func deleteIssue() async {
         do {

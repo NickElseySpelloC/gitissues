@@ -12,6 +12,8 @@ struct CommentFormSheet: View {
     @StateObject var viewModel: CommentFormViewModel
     @Environment(\.dismiss) private var dismiss
     var onSuccess: ((Comment) -> Void)?
+    var onSuccessAndClose: ((Comment) -> Void)?
+    var currentIssue: Issue?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -63,6 +65,23 @@ struct CommentFormSheet: View {
                 .buttonStyle(.bordered)
 
                 Spacer()
+
+                // Show "Save and Close Issue" button if issue is open
+                if let issue = currentIssue, issue.state == .open {
+                    Button("Save and Close Issue") {
+                        Task {
+                            do {
+                                let comment = try await viewModel.submit()
+                                onSuccessAndClose?(comment)
+                                dismiss()
+                            } catch {
+                                // Error is already set in viewModel
+                            }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isSubmitting)
+                }
 
                 Button(viewModel.isEditMode ? "Save Changes" : "Add Comment") {
                     Task {
