@@ -162,6 +162,23 @@ class CommentFormViewModel: ObservableObject {
         }
     }
 
+    /// Lightweight initializer for window-based forms
+    /// Creates the view model from lightweight data structures instead of full domain objects
+    init(apiService: GitHubAPIService, mode: CommentFormMode, commentData: CommentFormWindowData.CommentData? = nil) {
+        self.apiService = apiService
+        self.mode = mode
+
+        switch mode {
+        case .add:
+            // Start with empty field
+            break
+        case .edit:
+            if let data = commentData {
+                self.body = data.body
+            }
+        }
+    }
+
     /// Returns true if in edit mode
     var isEditMode: Bool {
         switch mode {

@@ -6,27 +6,18 @@
 //
 
 import SwiftUI
+import Combine
 
 struct IssueDetailView: View {
     @StateObject var viewModel: IssueDetailViewModel
-    @State private var showEditSheet = false
-    @State private var commentSheetMode: CommentSheetMode?
+    @Environment(\.openWindow) private var openWindow
+    @EnvironmentObject var authManager: OAuth2Manager
+    @StateObject private var coordinator = WindowCoordinator.shared
     @State private var showDeleteConfirmation = false
     @State private var commentToDelete: Comment?
     @State private var showDeleteIssueConfirmation = false
     @State private var isShareAnimating = false
-
-    enum CommentSheetMode: Identifiable {
-        case add
-        case edit(Comment)
-
-        var id: String {
-            switch self {
-            case .add: return "add"
-            case .edit(let comment): return "edit-\(comment.id)"
-            }
-        }
-    }
+    @State private var cancellables = Set<AnyCancellable>()
 
     var body: some View {
         ScrollView {
@@ -40,7 +31,22 @@ struct IssueDetailView: View {
                         viewModel.togglePin()
                     },
                     onEditTapped: {
-                        showEditSheet = true
+                        if let accessToken = authManager.getAccessToken() {
+                            let issueData = IssueFormWindowData.IssueData(
+                                issueId: viewModel.issue.id,
+                                title: viewModel.issue.title,
+                                body: viewModel.issue.body,
+                                state: viewModel.issue.state.rawValue,
+                                repositoryId: viewModel.issue.repository.id,
+                                labelIds: viewModel.issue.labels.map { $0.id }
+                            )
+                            let windowData = IssueFormWindowData(
+                                mode: .edit,
+                                accessToken: accessToken,
+                                issueData: issueData
+                            )
+                            openWindow(id: WindowIdentifier.issueForm.rawValue, value: windowData)
+                        }
                     },
                     onDeleteTapped: {
                         showDeleteIssueConfirmation = true
@@ -93,10 +99,31 @@ struct IssueDetailView: View {
                     isLoading: viewModel.isLoadingComments,
                     apiService: viewModel.apiService,
                     onAddComment: {
-                        commentSheetMode = .add
+                        if let accessToken = authManager.getAccessToken() {
+                            let windowData = CommentFormWindowData(
+                                mode: .add,
+                                accessToken: accessToken,
+                                issueId: viewModel.issue.id,
+                                issueState: viewModel.issue.state.rawValue
+                            )
+                            openWindow(id: WindowIdentifier.commentForm.rawValue, value: windowData)
+                        }
                     },
                     onEditComment: { comment in
-                        commentSheetMode = .edit(comment)
+                        if let accessToken = authManager.getAccessToken() {
+                            let commentData = CommentFormWindowData.CommentData(
+                                commentId: comment.id,
+                                body: comment.body
+                            )
+                            let windowData = CommentFormWindowData(
+                                mode: .edit,
+                                accessToken: accessToken,
+                                issueId: viewModel.issue.id,
+                                issueState: viewModel.issue.state.rawValue,
+                                commentData: commentData
+                            )
+                            openWindow(id: WindowIdentifier.commentForm.rawValue, value: windowData)
+                        }
                     },
                     onDeleteComment: { comment in
                         commentToDelete = comment
@@ -121,67 +148,37 @@ struct IssueDetailView: View {
         }
         .task {
             await viewModel.loadIssueDetails()
-        }
-        .sheet(isPresented: $showEditSheet) {
-            let formViewModel = IssueFormViewModel(
-                apiService: viewModel.apiService,
-                mode: .edit(issue: viewModel.issue)
-            )
-            IssueFormSheet(viewModel: formViewModel) { updatedIssue in
-                // Update local issue and refresh details
-                viewModel.issue = updatedIssue
-                Task {
-                    await viewModel.loadIssueDetails()
-                    // Also refresh the main issues list with delay
-                    await viewModel.refreshList(afterDelay: 1.5)
+
+            // Subscribe to coordinator events
+            coordinator.issueFormSuccess
+                .sink { (windowId, issue) in
+                    Task {
+                        // Update local issue and refresh details
+                        viewModel.issue = issue
+                        await viewModel.loadIssueDetails()
+                        // Also refresh the main issues list with delay
+                        await viewModel.refreshList(afterDelay: 1.5)
+                    }
                 }
-            }
-        }
-        .sheet(item: $commentSheetMode) { mode in
-            switch mode {
-            case .add:
-                let formViewModel = CommentFormViewModel(
-                    apiService: viewModel.apiService,
-                    mode: .add(issueId: viewModel.issue.id)
-                )
-                CommentFormSheet(
-                    viewModel: formViewModel,
-                    onSuccess: { _ in
-                        Task {
-                            await viewModel.loadIssueDetails()
-                        }
-                    },
-                    onSuccessAndClose: { _ in
-                        Task {
-                            await viewModel.closeIssue()
-                            await viewModel.loadIssueDetails()
-                            await viewModel.refreshList(afterDelay: 1.5)
-                        }
-                    },
-                    currentIssue: viewModel.issue
-                )
-            case .edit(let comment):
-                let formViewModel = CommentFormViewModel(
-                    apiService: viewModel.apiService,
-                    mode: .edit(comment: comment)
-                )
-                CommentFormSheet(
-                    viewModel: formViewModel,
-                    onSuccess: { _ in
-                        Task {
-                            await viewModel.loadIssueDetails()
-                        }
-                    },
-                    onSuccessAndClose: { _ in
-                        Task {
-                            await viewModel.closeIssue()
-                            await viewModel.loadIssueDetails()
-                            await viewModel.refreshList(afterDelay: 1.5)
-                        }
-                    },
-                    currentIssue: viewModel.issue
-                )
-            }
+                .store(in: &cancellables)
+
+            coordinator.commentFormSuccess
+                .sink { (windowId, comment) in
+                    Task {
+                        await viewModel.loadIssueDetails()
+                    }
+                }
+                .store(in: &cancellables)
+
+            coordinator.commentFormSuccessAndClose
+                .sink { (windowId, comment) in
+                    Task {
+                        await viewModel.closeIssue()
+                        await viewModel.loadIssueDetails()
+                        await viewModel.refreshList(afterDelay: 1.5)
+                    }
+                }
+                .store(in: &cancellables)
         }
         .alert("Delete Comment", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) {

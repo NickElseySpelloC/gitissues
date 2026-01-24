@@ -65,6 +65,26 @@ struct GitIssuesApp: App {
         Settings {
             SettingsView()
         }
+
+        // Issue Form Window
+        Window("Issue", id: WindowIdentifier.issueForm.rawValue, for: IssueFormWindowData.self) { $windowData in
+            if let data = windowData {
+                IssueFormWindow(windowData: data)
+                    .environmentObject(authManager)
+            }
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+
+        // Comment Form Window
+        Window("Comment", id: WindowIdentifier.commentForm.rawValue, for: CommentFormWindowData.self) { $windowData in
+            if let data = windowData {
+                CommentFormWindow(windowData: data)
+                    .environmentObject(authManager)
+            }
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
     }
 
     @MainActor

@@ -59,6 +59,27 @@ class IssueFormViewModel: ObservableObject {
         }
     }
 
+    /// Lightweight initializer for window-based forms
+    /// Creates the view model from lightweight data structures instead of full domain objects
+    init(apiService: GitHubAPIService, mode: IssueFormMode, issueData: IssueFormWindowData.IssueData? = nil) {
+        self.apiService = apiService
+        self.mode = mode
+
+        switch mode {
+        case .create:
+            // Start with empty fields
+            break
+        case .edit:
+            if let data = issueData {
+                self.title = data.title
+                self.body = data.body ?? ""
+                self.selectedState = IssueState(rawValue: data.state) ?? .open
+                self.selectedRepositoryId = data.repositoryId
+                self.selectedLabelIds = Set(data.labelIds)
+            }
+        }
+    }
+
     /// Loads available repositories for create mode
     func loadRepositories() async {
         guard case .create = mode else { return }

@@ -11,15 +11,16 @@ import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var authManager: OAuth2Manager
+    @Environment(\.openWindow) private var openWindow
     @StateObject private var viewModel: IssuesListViewModelWrapper
+    @StateObject private var coordinator = WindowCoordinator.shared
     @State private var searchText = ""
     @State private var selectedIssue: Issue?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var showCreateIssue = false
-    @State private var issueToEdit: Issue?
     @State private var issueToDelete: Issue?
     @State private var showDeleteConfirmation = false
     @State private var sidebarWidth: CGFloat?
+    @State private var cancellables = Set<AnyCancellable>()
 
     private let appStateService = AppStateService()
 
@@ -135,7 +136,22 @@ struct ContentView: View {
                                 .tag(issue)
                                 .contextMenu {
                                     Button {
-                                        issueToEdit = issue
+                                        if let accessToken = authManager.getAccessToken() {
+                                            let issueData = IssueFormWindowData.IssueData(
+                                                issueId: issue.id,
+                                                title: issue.title,
+                                                body: issue.body,
+                                                state: issue.state.rawValue,
+                                                repositoryId: issue.repository.id,
+                                                labelIds: issue.labels.map { $0.id }
+                                            )
+                                            let windowData = IssueFormWindowData(
+                                                mode: .edit,
+                                                accessToken: accessToken,
+                                                issueData: issueData
+                                            )
+                                            openWindow(id: WindowIdentifier.issueForm.rawValue, value: windowData)
+                                        }
                                     } label: {
                                         SwiftUI.Label("Edit Issue", systemImage: "pencil")
                                     }
@@ -197,8 +213,22 @@ struct ContentView: View {
                             }
                             .listStyle(.sidebar)
                             .onKeyPress(.return) {
-                                if let selected = selectedIssue {
-                                    issueToEdit = selected
+                                if let selected = selectedIssue,
+                                   let accessToken = authManager.getAccessToken() {
+                                    let issueData = IssueFormWindowData.IssueData(
+                                        issueId: selected.id,
+                                        title: selected.title,
+                                        body: selected.body,
+                                        state: selected.state.rawValue,
+                                        repositoryId: selected.repository.id,
+                                        labelIds: selected.labels.map { $0.id }
+                                    )
+                                    let windowData = IssueFormWindowData(
+                                        mode: .edit,
+                                        accessToken: accessToken,
+                                        issueData: issueData
+                                    )
+                                    openWindow(id: WindowIdentifier.issueForm.rawValue, value: windowData)
                                     return .handled
                                 }
                                 return .ignored
@@ -219,7 +249,10 @@ struct ContentView: View {
             .toolbar(content: {
                 ToolbarItemGroup(placement: .automatic) {
                     Button {
-                        showCreateIssue = true
+                        if let accessToken = authManager.getAccessToken() {
+                            let windowData = IssueFormWindowData(mode: .create, accessToken: accessToken)
+                            openWindow(id: WindowIdentifier.issueForm.rawValue, value: windowData)
+                        }
                     } label: {
                         SwiftUI.Label("New Issue", systemImage: "plus")
                     }
@@ -280,47 +313,19 @@ struct ContentView: View {
                 viewModel.viewModel = newViewModel
                 await newViewModel.loadIssues()
             }
-        }
-        .sheet(isPresented: $showCreateIssue) {
-            if let accessToken = authManager.getAccessToken(),
-               let vm = viewModel.viewModel {
-                let apiService = GitHubAPIService(accessToken: accessToken)
-                let formViewModel = IssueFormViewModel(
-                    apiService: apiService,
-                    mode: .create
-                )
-                IssueFormSheet(viewModel: formViewModel) { createdIssue in
-                    // Refresh the issues list with delay to allow GitHub to process
+
+            // Subscribe to coordinator events
+            coordinator.issueFormSuccess
+                .sink { (windowId, issue) in
                     Task {
-                        await vm.loadIssues(afterDelay: 1.5)
-                    }
-                }
-            }
-        }
-        .sheet(item: $issueToEdit) { issue in
-            if let accessToken = authManager.getAccessToken(),
-               let vm = viewModel.viewModel {
-                let apiService = GitHubAPIService(accessToken: accessToken)
-                let formViewModel = IssueFormViewModel(
-                    apiService: apiService,
-                    mode: .edit(issue: issue)
-                )
-                IssueFormSheet(viewModel: formViewModel) { updatedIssue in
-                    // Refresh the issues list to reflect changes
-                    Task {
-                        await vm.loadIssues(afterDelay: 1.5)
-                        // Update the selected issue to the refreshed version from the list
+                        await viewModel.viewModel?.loadIssues(afterDelay: 1.5)
+                        // Update selected issue if needed
                         if let currentSelectedId = selectedIssue?.id {
-                            selectedIssue = vm.allIssues.first { $0.id == currentSelectedId }
+                            selectedIssue = viewModel.viewModel?.allIssues.first { $0.id == currentSelectedId }
                         }
                     }
-                    // Clear the edit state
-                    issueToEdit = nil
                 }
-            } else {
-                // Fallback empty view if requirements aren't met
-                EmptyView()
-            }
+                .store(in: &cancellables)
         }
         .background(WindowAccessor { window in
             // Use macOS native window frame autosave
