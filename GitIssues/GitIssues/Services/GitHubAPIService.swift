@@ -123,11 +123,13 @@ class GitHubAPIService {
     ///   - repositoryId: The ID of the repository
     ///   - title: The issue title
     ///   - body: The issue body (optional)
+    ///   - labelIds: Array of label IDs to add (optional)
     /// - Returns: The created Issue
     func createIssue(
         repositoryId: String,
         title: String,
-        body: String?
+        body: String?,
+        labelIds: [String]? = nil
     ) async throws -> Issue {
         // Validate inputs
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -148,6 +150,10 @@ class GitHubAPIService {
 
         if let finalBody = finalBody {
             variables["body"] = finalBody
+        }
+
+        if let labelIds = labelIds, !labelIds.isEmpty {
+            variables["labelIds"] = labelIds
         }
 
         let response: CreateIssueResponse = try await graphQLClient.execute(
@@ -273,6 +279,140 @@ class GitHubAPIService {
 
         let _: DeleteCommentResponse = try await graphQLClient.execute(
             query: GraphQLQueries.deleteCommentMutation,
+            variables: variables
+        )
+    }
+
+    /// Fetches all repositories owned by the authenticated user
+    /// - Parameter cursor: Pagination cursor for fetching next page
+    /// - Returns: Array of repositories and pagination info
+    func fetchRepositories(cursor: String? = nil) async throws -> (repositories: [Repository], hasNextPage: Bool, endCursor: String?) {
+        var variables: [String: Any] = [:]
+
+        if let cursor = cursor {
+            variables["cursor"] = cursor
+        }
+
+        let response: RepositoriesResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.repositoriesQuery,
+            variables: variables
+        )
+
+        let repositories = response.viewer.repositories.nodes.map { $0.toRepository() }
+        let pageInfo = response.viewer.repositories.pageInfo
+
+        return (repositories, pageInfo.hasNextPage, pageInfo.endCursor)
+    }
+
+    /// Fetches all repositories across all pages
+    /// - Returns: Array of all repositories
+    func fetchAllRepositories() async throws -> [Repository] {
+        var allRepositories: [Repository] = []
+        var cursor: String? = nil
+        var hasNextPage = true
+
+        while hasNextPage {
+            let (repositories, nextPage, nextCursor) = try await fetchRepositories(cursor: cursor)
+            allRepositories.append(contentsOf: repositories)
+            hasNextPage = nextPage
+            cursor = nextCursor
+        }
+
+        return allRepositories
+    }
+
+    /// Deletes an issue
+    /// - Parameter issueId: The ID of the issue to delete
+    func deleteIssue(issueId: String) async throws {
+        let variables: [String: Any] = [
+            "id": issueId
+        ]
+
+        let _: DeleteIssueResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.deleteIssueMutation,
+            variables: variables
+        )
+    }
+
+    /// Fetches labels for a repository
+    /// - Parameters:
+    ///   - owner: Repository owner login
+    ///   - repo: Repository name
+    ///   - cursor: Pagination cursor
+    /// - Returns: Array of labels and pagination info
+    func fetchRepositoryLabels(owner: String, repo: String, cursor: String? = nil) async throws -> (labels: [Label], hasNextPage: Bool, endCursor: String?) {
+        var variables: [String: Any] = [
+            "owner": owner,
+            "repo": repo
+        ]
+
+        if let cursor = cursor {
+            variables["cursor"] = cursor
+        }
+
+        let response: RepositoryLabelsResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.repositoryLabelsQuery,
+            variables: variables
+        )
+
+        let labels = response.repository.labels.nodes.map { $0.toLabel() }
+        let pageInfo = response.repository.labels.pageInfo
+
+        return (labels, pageInfo.hasNextPage, pageInfo.endCursor)
+    }
+
+    /// Fetches all labels for a repository across all pages
+    /// - Parameters:
+    ///   - owner: Repository owner login
+    ///   - repo: Repository name
+    /// - Returns: Array of all labels
+    func fetchAllRepositoryLabels(owner: String, repo: String) async throws -> [Label] {
+        var allLabels: [Label] = []
+        var cursor: String? = nil
+        var hasNextPage = true
+
+        while hasNextPage {
+            let (labels, nextPage, nextCursor) = try await fetchRepositoryLabels(
+                owner: owner,
+                repo: repo,
+                cursor: cursor
+            )
+            allLabels.append(contentsOf: labels)
+            hasNextPage = nextPage
+            cursor = nextCursor
+        }
+
+        return allLabels
+    }
+
+    /// Adds labels to an issue
+    /// - Parameters:
+    ///   - issueId: The ID of the issue
+    ///   - labelIds: Array of label IDs to add
+    func addLabelsToIssue(issueId: String, labelIds: [String]) async throws {
+        let variables: [String: Any] = [
+            "issueId": issueId,
+            "labelIds": labelIds
+        ]
+
+        let _: AddLabelsResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.addLabelsToIssueMutation,
+            variables: variables
+        )
+    }
+
+    /// Removes labels from an issue
+    /// - Parameters:
+    ///   - issueId: The ID of the issue
+    ///   - labelIds: Array of label IDs to remove
+    func removeLabelsFromIssue(issueId: String, labelIds: [String]) async throws {
+        let variables: [String: Any] = [
+            "issueId": issueId,
+            "labelIds": labelIds
+        ]
+
+        let _: RemoveLabelsResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.removeLabelsFromIssueMutation,
             variables: variables
         )
     }

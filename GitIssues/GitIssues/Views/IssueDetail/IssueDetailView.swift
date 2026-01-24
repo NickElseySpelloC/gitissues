@@ -14,6 +14,7 @@ struct IssueDetailView: View {
     @State private var commentToEdit: Comment?
     @State private var showDeleteConfirmation = false
     @State private var commentToDelete: Comment?
+    @State private var showDeleteIssueConfirmation = false
     @State private var isShareAnimating = false
 
     var body: some View {
@@ -29,6 +30,9 @@ struct IssueDetailView: View {
                     },
                     onEditTapped: {
                         showEditSheet = true
+                    },
+                    onDeleteTapped: {
+                        showDeleteIssueConfirmation = true
                     },
                     onShareTapped: {
                         viewModel.shareIssue()
@@ -166,6 +170,16 @@ struct IssueDetailView: View {
         } message: {
             Text("Are you sure you want to delete this comment? This action cannot be undone.")
         }
+        .alert("Delete Issue", isPresented: $showDeleteIssueConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                Task {
+                    await viewModel.deleteIssue()
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this issue? This action cannot be undone.")
+        }
     }
 }
 
@@ -176,6 +190,7 @@ struct IssueHeaderView: View {
     let isShareAnimating: Bool
     let onPinToggle: () -> Void
     let onEditTapped: () -> Void
+    let onDeleteTapped: () -> Void
     let onShareTapped: () -> Void
 
     var body: some View {
@@ -226,6 +241,15 @@ struct IssueHeaderView: View {
                 }
                 .buttonStyle(.plain)
                 .help(isPinned ? "Unpin issue" : "Pin issue")
+
+                // Delete button
+                Button(action: onDeleteTapped) {
+                    Image(systemName: "trash")
+                        .font(.title2)
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(.plain)
+                .help("Delete issue")
 
                 // Share button
                 Button(action: onShareTapped) {

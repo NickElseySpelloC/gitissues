@@ -86,4 +86,15 @@ class IssueDetailViewModel: ObservableObject {
         pasteboard.clearContents()
         pasteboard.setString(url, forType: .string)
     }
+
+    /// Deletes the issue
+    func deleteIssue() async {
+        do {
+            try await apiService.deleteIssue(issueId: issue.id)
+            // Refresh the main issues list
+            await refreshList()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }

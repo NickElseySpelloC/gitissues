@@ -134,10 +134,51 @@ struct GraphQLQueries {
     }
     """
 
+    /// Query to fetch all repositories owned by the user
+    static let repositoriesQuery = """
+    query Repositories($cursor: String, $first: Int = 100) {
+      viewer {
+        repositories(first: $first, after: $cursor, ownerAffiliations: OWNER, orderBy: {field: NAME, direction: ASC}) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          nodes {
+            id
+            name
+            owner {
+              login
+            }
+            isPrivate
+          }
+        }
+      }
+    }
+    """
+
+    /// Query to fetch labels for a repository
+    static let repositoryLabelsQuery = """
+    query RepositoryLabels($owner: String!, $repo: String!, $cursor: String, $first: Int = 100) {
+      repository(owner: $owner, name: $repo) {
+        labels(first: $first, after: $cursor) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          nodes {
+            id
+            name
+            color
+          }
+        }
+      }
+    }
+    """
+
     /// Mutation to create a new issue
     static let createIssueMutation = """
-    mutation CreateIssue($repositoryId: ID!, $title: String!, $body: String) {
-      createIssue(input: {repositoryId: $repositoryId, title: $title, body: $body}) {
+    mutation CreateIssue($repositoryId: ID!, $title: String!, $body: String, $labelIds: [ID!]) {
+      createIssue(input: {repositoryId: $repositoryId, title: $title, body: $body, labelIds: $labelIds}) {
         issue {
           id
           number
@@ -278,6 +319,33 @@ struct GraphQLQueries {
     static let deleteCommentMutation = """
     mutation DeleteComment($id: ID!) {
       deleteIssueComment(input: {id: $id}) {
+        clientMutationId
+      }
+    }
+    """
+
+    /// Mutation to delete an issue
+    static let deleteIssueMutation = """
+    mutation DeleteIssue($id: ID!) {
+      deleteIssue(input: {issueId: $id}) {
+        clientMutationId
+      }
+    }
+    """
+
+    /// Mutation to add labels to an issue
+    static let addLabelsToIssueMutation = """
+    mutation AddLabels($issueId: ID!, $labelIds: [ID!]!) {
+      addLabelsToLabelable(input: {labelableId: $issueId, labelIds: $labelIds}) {
+        clientMutationId
+      }
+    }
+    """
+
+    /// Mutation to remove labels from an issue
+    static let removeLabelsFromIssueMutation = """
+    mutation RemoveLabels($issueId: ID!, $labelIds: [ID!]!) {
+      removeLabelsFromLabelable(input: {labelableId: $issueId, labelIds: $labelIds}) {
         clientMutationId
       }
     }
@@ -826,11 +894,110 @@ struct DeleteCommentResponse: Codable {
     }
 }
 
+// Response structure for delete issue mutation
+struct DeleteIssueResponse: Codable {
+    let deleteIssue: DeleteIssuePayload
+
+    struct DeleteIssuePayload: Codable {
+        let clientMutationId: String?
+    }
+}
+
 // Response structure for viewer query
 struct ViewerResponse: Codable {
     let viewer: ViewerNode
 
     struct ViewerNode: Codable {
         let login: String
+    }
+}
+
+// Response structure for repositories query
+struct RepositoriesResponse: Codable {
+    let viewer: ViewerRepositories
+
+    struct ViewerRepositories: Codable {
+        let repositories: RepositoryConnection
+    }
+
+    struct RepositoryConnection: Codable {
+        let pageInfo: PageInfo
+        let nodes: [RepositoryNode]
+    }
+
+    struct PageInfo: Codable {
+        let hasNextPage: Bool
+        let endCursor: String?
+    }
+
+    struct RepositoryNode: Codable {
+        let id: String
+        let name: String
+        let owner: OwnerNode
+        let isPrivate: Bool
+
+        func toRepository() -> Repository {
+            return Repository(
+                id: id,
+                name: name,
+                owner: User(
+                    id: owner.login,
+                    login: owner.login,
+                    avatarUrl: ""
+                ),
+                isPrivate: isPrivate
+            )
+        }
+    }
+
+    struct OwnerNode: Codable {
+        let login: String
+    }
+}
+
+// Response structure for repository labels query
+struct RepositoryLabelsResponse: Codable {
+    let repository: RepositoryLabels
+
+    struct RepositoryLabels: Codable {
+        let labels: LabelConnection
+    }
+
+    struct LabelConnection: Codable {
+        let pageInfo: PageInfo
+        let nodes: [LabelNode]
+    }
+
+    struct PageInfo: Codable {
+        let hasNextPage: Bool
+        let endCursor: String?
+    }
+
+    struct LabelNode: Codable {
+        let id: String
+        let name: String
+        let color: String
+
+        func toLabel() -> Label {
+            return Label(id: id, name: name, color: color)
+        }
+    }
+}
+
+// Response structure for add labels mutation
+struct AddLabelsResponse: Codable {
+    let addLabelsToLabelable: AddLabelsPayload
+
+    struct AddLabelsPayload: Codable {
+        let clientMutationId: String?
+    }
+}
+
+// Response structure for remove labels mutation
+struct RemoveLabelsResponse: Codable {
+    let removeLabelsFromLabelable: RemoveLabelsPayload
+
+    struct RemoveLabelsPayload: Codable {
+        let clientMutationId: String?
     }
 }

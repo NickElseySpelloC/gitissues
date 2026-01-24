@@ -80,7 +80,7 @@ struct CommentFormSheet: View {
             }
             .padding()
         }
-        .frame(width: 500, height: 400)
+        .frame(width: 700, height: 500) // Set size of comment edit window
     }
 }
 
@@ -102,7 +102,7 @@ struct CommentBodySection: View {
 
             TextEditor(text: $viewModel.body)
                 .font(.body)
-                .frame(height: 200)
+                .frame(height: 330)
                 .border(Color.secondary.opacity(0.2), width: 1)
                 .cornerRadius(4)
         }

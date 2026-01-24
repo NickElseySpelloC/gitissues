@@ -16,6 +16,13 @@ class IssueFormViewModel: ObservableObject {
     @Published var initialComment: String = ""
     @Published var selectedState: IssueState = .open
     @Published var selectedRepositoryId: String?
+    @Published var availableRepositories: [Repository] = []
+    @Published var isLoadingRepositories = false
+
+    // Label management
+    @Published var availableLabels: [Label] = []
+    @Published var selectedLabelIds: Set<String> = []
+    @Published var isLoadingLabels = false
 
     // UI state
     @Published var isSubmitting = false
@@ -28,7 +35,7 @@ class IssueFormViewModel: ObservableObject {
 
     // Form mode
     enum IssueFormMode {
-        case create(availableRepositories: [Repository])
+        case create
         case edit(issue: Issue)
     }
 
@@ -40,23 +47,63 @@ class IssueFormViewModel: ObservableObject {
         switch mode {
         case .create:
             // Start with empty fields
+            // Load repositories asynchronously
             break
         case .edit(let issue):
             self.title = issue.title
             self.body = issue.body ?? ""
             self.selectedState = issue.state
             self.selectedRepositoryId = issue.repository.id
+            // Pre-select existing labels
+            self.selectedLabelIds = Set(issue.labels.map { $0.id })
         }
     }
 
-    /// Returns the available repositories for create mode
-    var availableRepositories: [Repository] {
-        switch mode {
-        case .create(let repositories):
-            return repositories
-        case .edit:
-            return []
+    /// Loads available repositories for create mode
+    func loadRepositories() async {
+        guard case .create = mode else { return }
+
+        isLoadingRepositories = true
+        do {
+            availableRepositories = try await apiService.fetchAllRepositories()
+        } catch {
+            errorMessage = "Failed to load repositories: \(error.localizedDescription)"
         }
+        isLoadingRepositories = false
+    }
+
+    /// Loads labels for the selected repository
+    func loadLabels() async {
+        // Get the repository info (owner and name)
+        guard let repositoryId = selectedRepositoryId else {
+            availableLabels = []
+            return
+        }
+
+        // Find the repository from available repositories or from the editing issue
+        let repository: Repository?
+        switch mode {
+        case .create:
+            repository = availableRepositories.first { $0.id == repositoryId }
+        case .edit(let issue):
+            repository = issue.repository
+        }
+
+        guard let repo = repository else {
+            availableLabels = []
+            return
+        }
+
+        isLoadingLabels = true
+        do {
+            availableLabels = try await apiService.fetchAllRepositoryLabels(
+                owner: repo.owner.login,
+                repo: repo.name
+            )
+        } catch {
+            errorMessage = "Failed to load labels: \(error.localizedDescription)"
+        }
+        isLoadingLabels = false
     }
 
     /// Returns true if in create mode
@@ -127,7 +174,8 @@ class IssueFormViewModel: ObservableObject {
                 issue = try await apiService.createIssue(
                     repositoryId: repositoryId,
                     title: title,
-                    body: body.isEmpty ? nil : body
+                    body: body.isEmpty ? nil : body,
+                    labelIds: selectedLabelIds.isEmpty ? nil : Array(selectedLabelIds)
                 )
 
                 // Add initial comment if provided
@@ -151,6 +199,25 @@ class IssueFormViewModel: ObservableObject {
                     body: bodyChanged ? (body.isEmpty ? nil : body) : nil,
                     state: stateChanged ? selectedState : nil
                 )
+
+                // Handle label changes
+                let existingLabelIds = Set(existingIssue.labels.map { $0.id })
+                let labelsToAdd = selectedLabelIds.subtracting(existingLabelIds)
+                let labelsToRemove = existingLabelIds.subtracting(selectedLabelIds)
+
+                if !labelsToAdd.isEmpty {
+                    try await apiService.addLabelsToIssue(
+                        issueId: existingIssue.id,
+                        labelIds: Array(labelsToAdd)
+                    )
+                }
+
+                if !labelsToRemove.isEmpty {
+                    try await apiService.removeLabelsFromIssue(
+                        issueId: existingIssue.id,
+                        labelIds: Array(labelsToRemove)
+                    )
+                }
             }
 
             isSubmitting = false

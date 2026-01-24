@@ -52,6 +52,9 @@ struct IssueFormSheet: View {
                         InitialCommentSection(viewModel: viewModel)
                     }
 
+                    // Labels section
+                    LabelPickerSection(viewModel: viewModel)
+
                     // State picker (edit mode only)
                     if !viewModel.isCreateMode {
                         StatePickerSection(viewModel: viewModel)
@@ -97,7 +100,14 @@ struct IssueFormSheet: View {
             }
             .padding()
         }
-        .frame(width: 600, height: 700)
+        .frame(width: 800, height: viewModel.isCreateMode ? 900 : 730)  // Set size of a new issue window
+        .task {
+            await viewModel.loadRepositories()
+            // Load labels for edit mode (repository is already known)
+            if !viewModel.isCreateMode {
+                await viewModel.loadLabels()
+            }
+        }
     }
 }
 
@@ -116,17 +126,33 @@ struct RepositoryPickerSection: View {
                     .foregroundColor(.red)
             }
 
-            Picker("", selection: $viewModel.selectedRepositoryId) {
-                Text("Select a repository...")
-                    .tag(nil as String?)
+            if viewModel.isLoadingRepositories {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                    Text("Loading repositories...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            } else {
+                Picker("", selection: $viewModel.selectedRepositoryId) {
+                    Text("Select a repository...")
+                        .tag(nil as String?)
 
-                ForEach(viewModel.availableRepositories) { repo in
-                    Text(repo.fullName)
-                        .tag(repo.id as String?)
+                    ForEach(viewModel.availableRepositories) { repo in
+                        Text(repo.fullName)
+                            .tag(repo.id as String?)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onChange(of: viewModel.selectedRepositoryId) { _, _ in
+                    // Load labels when repository changes
+                    Task {
+                        await viewModel.loadLabels()
+                    }
                 }
             }
-            .pickerStyle(.menu)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -170,7 +196,7 @@ struct BodySection: View {
 
             TextEditor(text: $viewModel.body)
                 .font(.body)
-                .frame(height: 200)
+                .frame(height: 280)
                 .border(Color.secondary.opacity(0.2), width: 1)
                 .cornerRadius(4)
         }
@@ -195,9 +221,82 @@ struct InitialCommentSection: View {
 
             TextEditor(text: $viewModel.initialComment)
                 .font(.body)
-                .frame(height: 150)
+                .frame(height: 200)
                 .border(Color.secondary.opacity(0.2), width: 1)
                 .cornerRadius(4)
+        }
+    }
+}
+
+// MARK: - Label Picker Section
+struct LabelPickerSection: View {
+    @ObservedObject var viewModel: IssueFormViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "tag")
+                    .foregroundColor(.secondary)
+                Text("Labels")
+                    .font(.headline)
+                Text("(optional)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            if viewModel.isLoadingLabels {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                    Text("Loading labels...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            } else if viewModel.availableLabels.isEmpty {
+                Text("No labels available for this repository")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .italic()
+            } else {
+                FlowLayout(spacing: 8) {
+                    ForEach(viewModel.availableLabels) { label in
+                        Button {
+                            if viewModel.selectedLabelIds.contains(label.id) {
+                                viewModel.selectedLabelIds.remove(label.id)
+                            } else {
+                                viewModel.selectedLabelIds.insert(label.id)
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: viewModel.selectedLabelIds.contains(label.id) ? "checkmark.circle.fill" : "circle")
+                                    .font(.caption)
+                                    .foregroundColor(viewModel.selectedLabelIds.contains(label.id) ? .accentColor : .secondary)
+
+                                Text(label.name)
+                                    .font(.caption)
+                                    .foregroundColor(.primary)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                viewModel.selectedLabelIds.contains(label.id)
+                                    ? Color(hex: label.color).opacity(0.3)
+                                    : Color(hex: label.color).opacity(0.15)
+                            )
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(
+                                        Color(hex: label.color).opacity(0.5),
+                                        lineWidth: viewModel.selectedLabelIds.contains(label.id) ? 1.5 : 1
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
         }
     }
 }

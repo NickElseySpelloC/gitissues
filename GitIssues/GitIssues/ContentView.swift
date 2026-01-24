@@ -17,6 +17,8 @@ struct ContentView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showCreateIssue = false
     @State private var issueToEdit: Issue?
+    @State private var issueToDelete: Issue?
+    @State private var showDeleteConfirmation = false
     @State private var sidebarWidth: CGFloat?
 
     private let appStateService = AppStateService()
@@ -137,6 +139,15 @@ struct ContentView: View {
                                     } label: {
                                         SwiftUI.Label("Edit Issue", systemImage: "pencil")
                                     }
+
+                                    Divider()
+
+                                    Button(role: .destructive) {
+                                        issueToDelete = issue
+                                        showDeleteConfirmation = true
+                                    } label: {
+                                        SwiftUI.Label("Delete Issue", systemImage: "trash")
+                                    }
                                 }
                             }
                             .listStyle(.sidebar)
@@ -231,7 +242,7 @@ struct ContentView: View {
                 let apiService = GitHubAPIService(accessToken: accessToken)
                 let formViewModel = IssueFormViewModel(
                     apiService: apiService,
-                    mode: .create(availableRepositories: vm.availableRepositories)
+                    mode: .create
                 )
                 IssueFormSheet(viewModel: formViewModel) { createdIssue in
                     // Refresh the issues list
@@ -277,6 +288,34 @@ struct ContentView: View {
                 let width = splitView.subviews[0].frame.width
                 sidebarWidth = width
                 appStateService.saveSidebarWidth(Double(width))
+            }
+        }
+        .alert("Delete Issue", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {
+                issueToDelete = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let issue = issueToDelete, let accessToken = authManager.getAccessToken() {
+                    Task {
+                        let apiService = GitHubAPIService(accessToken: accessToken)
+                        do {
+                            try await apiService.deleteIssue(issueId: issue.id)
+                            // Refresh issues list
+                            await viewModel.viewModel?.loadIssues()
+                            // Clear selection if we deleted the selected issue
+                            if selectedIssue?.id == issue.id {
+                                selectedIssue = nil
+                            }
+                        } catch {
+                            print("Error deleting issue: \(error)")
+                        }
+                        issueToDelete = nil
+                    }
+                }
+            }
+        } message: {
+            if let issue = issueToDelete {
+                Text("Are you sure you want to delete \"\(issue.title)\"? This action cannot be undone.")
             }
         }
     }
