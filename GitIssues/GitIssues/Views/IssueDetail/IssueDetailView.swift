@@ -10,12 +10,23 @@ import SwiftUI
 struct IssueDetailView: View {
     @StateObject var viewModel: IssueDetailViewModel
     @State private var showEditSheet = false
-    @State private var showCommentSheet = false
-    @State private var commentToEdit: Comment?
+    @State private var commentSheetMode: CommentSheetMode?
     @State private var showDeleteConfirmation = false
     @State private var commentToDelete: Comment?
     @State private var showDeleteIssueConfirmation = false
     @State private var isShareAnimating = false
+
+    enum CommentSheetMode: Identifiable {
+        case add
+        case edit(Comment)
+
+        var id: String {
+            switch self {
+            case .add: return "add"
+            case .edit(let comment): return "edit-\(comment.id)"
+            }
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -82,12 +93,10 @@ struct IssueDetailView: View {
                     isLoading: viewModel.isLoadingComments,
                     apiService: viewModel.apiService,
                     onAddComment: {
-                        commentToEdit = nil
-                        showCommentSheet = true
+                        commentSheetMode = .add
                     },
                     onEditComment: { comment in
-                        commentToEdit = comment
-                        showCommentSheet = true
+                        commentSheetMode = .edit(comment)
                     },
                     onDeleteComment: { comment in
                         commentToDelete = comment
@@ -128,35 +137,9 @@ struct IssueDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showCommentSheet) {
-            if let comment = commentToEdit {
-                // Edit existing comment
-                let formViewModel = CommentFormViewModel(
-                    apiService: viewModel.apiService,
-                    mode: .edit(comment: comment)
-                )
-                CommentFormSheet(
-                    viewModel: formViewModel,
-                    onSuccess: { _ in
-                        // Refresh issue details to reload comments
-                        Task {
-                            await viewModel.loadIssueDetails()
-                        }
-                        commentToEdit = nil
-                    },
-                    onSuccessAndClose: { _ in
-                        // Save comment and close issue
-                        Task {
-                            await viewModel.closeIssue()
-                            await viewModel.loadIssueDetails()
-                            await viewModel.refreshList(afterDelay: 1.5)
-                        }
-                        commentToEdit = nil
-                    },
-                    currentIssue: viewModel.issue
-                )
-            } else {
-                // Add new comment
+        .sheet(item: $commentSheetMode) { mode in
+            switch mode {
+            case .add:
                 let formViewModel = CommentFormViewModel(
                     apiService: viewModel.apiService,
                     mode: .add(issueId: viewModel.issue.id)
@@ -164,13 +147,32 @@ struct IssueDetailView: View {
                 CommentFormSheet(
                     viewModel: formViewModel,
                     onSuccess: { _ in
-                        // Refresh issue details to reload comments
                         Task {
                             await viewModel.loadIssueDetails()
                         }
                     },
                     onSuccessAndClose: { _ in
-                        // Save comment and close issue
+                        Task {
+                            await viewModel.closeIssue()
+                            await viewModel.loadIssueDetails()
+                            await viewModel.refreshList(afterDelay: 1.5)
+                        }
+                    },
+                    currentIssue: viewModel.issue
+                )
+            case .edit(let comment):
+                let formViewModel = CommentFormViewModel(
+                    apiService: viewModel.apiService,
+                    mode: .edit(comment: comment)
+                )
+                CommentFormSheet(
+                    viewModel: formViewModel,
+                    onSuccess: { _ in
+                        Task {
+                            await viewModel.loadIssueDetails()
+                        }
+                    },
+                    onSuccessAndClose: { _ in
                         Task {
                             await viewModel.closeIssue()
                             await viewModel.loadIssueDetails()

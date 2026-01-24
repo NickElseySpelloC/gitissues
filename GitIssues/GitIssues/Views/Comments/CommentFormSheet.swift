@@ -119,8 +119,7 @@ struct CommentBodySection: View {
                     .foregroundColor(.secondary)
             }
 
-            TextEditor(text: $viewModel.body)
-                .font(.body)
+            MarkdownEditorView(text: $viewModel.body, placeholder: "Write your comment...")
                 .frame(height: 330)
                 .border(Color.secondary.opacity(0.2), width: 1)
                 .cornerRadius(4)

@@ -194,8 +194,7 @@ struct BodySection: View {
                     .foregroundColor(.secondary)
             }
 
-            TextEditor(text: $viewModel.body)
-                .font(.body)
+            MarkdownEditorView(text: $viewModel.body, placeholder: "Add a description...")
                 .frame(height: 280)
                 .border(Color.secondary.opacity(0.2), width: 1)
                 .cornerRadius(4)
@@ -219,8 +218,7 @@ struct InitialCommentSection: View {
                     .foregroundColor(.secondary)
             }
 
-            TextEditor(text: $viewModel.initialComment)
-                .font(.body)
+            MarkdownEditorView(text: $viewModel.initialComment, placeholder: "Add an initial comment...")
                 .frame(height: 200)
                 .border(Color.secondary.opacity(0.2), width: 1)
                 .cornerRadius(4)
