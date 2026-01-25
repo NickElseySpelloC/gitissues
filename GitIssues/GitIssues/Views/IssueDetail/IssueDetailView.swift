@@ -38,6 +38,8 @@ struct IssueDetailView: View {
                                 body: viewModel.issue.body,
                                 state: viewModel.issue.state.rawValue,
                                 repositoryId: viewModel.issue.repository.id,
+                                repositoryOwner: viewModel.issue.repository.owner.login,
+                                repositoryName: viewModel.issue.repository.name,
                                 labelIds: viewModel.issue.labels.map { $0.id }
                             )
                             let windowData = IssueFormWindowData(
@@ -414,7 +416,7 @@ struct IssueBodyView: View {
 
             // Use GitHub markdown rendering
             MarkdownRenderView(markdown: bodyText, apiService: apiService)
-                .frame(maxWidth: .infinity, minHeight: 100, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
                 .background(Color(nsColor: .textBackgroundColor))
                 .cornerRadius(8)
@@ -541,7 +543,7 @@ struct CommentView: View {
 
             // Use GitHub markdown rendering
             MarkdownRenderView(markdown: comment.body, apiService: apiService)
-                .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
                 .background(Color(nsColor: .textBackgroundColor))
                 .cornerRadius(8)

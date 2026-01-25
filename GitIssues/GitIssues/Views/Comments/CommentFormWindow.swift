@@ -27,12 +27,44 @@ struct CommentFormWindow: View {
             currentIssue: createCurrentIssue()
         )
         .frame(
-            minWidth: 500, idealWidth: 700, maxWidth: 1000,
-            minHeight: 400, idealHeight: 500, maxHeight: 800
+            minWidth: 500, maxWidth: 1000,
+            minHeight: 400, maxHeight: 800
         )
         .background(WindowAccessor { window in
-            // Use macOS native window frame autosave
-            window.setFrameAutosaveName("CommentFormWindow-\(windowData.mode.rawValue)")
+            let autosaveName = "GitIssues.CommentFormWindow.\(windowData.mode.rawValue)"
+
+            // Try to restore saved frame
+            if let savedFrameString = UserDefaults.standard.string(forKey: autosaveName) {
+                let savedFrame = NSRectFromString(savedFrameString)
+                window.setFrame(savedFrame, display: false)
+            } else {
+                // No saved frame - set default
+                let defaultWidth: CGFloat = 700
+                let defaultHeight: CGFloat = 500
+                let screenFrame = NSScreen.main?.visibleFrame ?? .zero
+                let x = (screenFrame.width - defaultWidth) / 2 + screenFrame.minX
+                let y = (screenFrame.height - defaultHeight) / 2 + screenFrame.minY
+                window.setFrame(NSRect(x: x, y: y, width: defaultWidth, height: defaultHeight), display: true)
+            }
+
+            // Set up observer to save frame when window moves or resizes
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didResizeNotification,
+                object: window,
+                queue: .main
+            ) { _ in
+                let frameString = NSStringFromRect(window.frame)
+                UserDefaults.standard.set(frameString, forKey: autosaveName)
+            }
+
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didMoveNotification,
+                object: window,
+                queue: .main
+            ) { _ in
+                let frameString = NSStringFromRect(window.frame)
+                UserDefaults.standard.set(frameString, forKey: autosaveName)
+            }
         })
     }
 
@@ -75,7 +107,6 @@ struct CommentFormWindow: View {
             repository: Repository(
                 id: "",
                 name: "",
-                fullName: "",
                 owner: User(id: "", login: "", avatarUrl: ""),
                 isPrivate: false
             ),
@@ -84,21 +115,4 @@ struct CommentFormWindow: View {
             author: nil
         )
     }
-}
-
-// Helper view to access NSWindow
-struct WindowAccessor: NSViewRepresentable {
-    let onWindowConfigured: (NSWindow) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            if let window = view.window {
-                self.onWindowConfigured(window)
-            }
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
 }

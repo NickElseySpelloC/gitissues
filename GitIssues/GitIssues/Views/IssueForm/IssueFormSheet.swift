@@ -13,94 +13,98 @@ struct IssueFormSheet: View {
     var onSuccess: ((Issue) -> Void)?
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text(viewModel.isCreateMode ? "New Issue" : "Edit Issue")
-                    .font(.headline)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text(viewModel.isCreateMode ? "New Issue" : "Edit Issue")
+                        .font(.headline)
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-            }
-            .padding()
+                .padding()
 
-            Divider()
+                Divider()
 
-            // Form content
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Repository picker (create mode only)
-                    if viewModel.isCreateMode {
-                        RepositoryPickerSection(viewModel: viewModel)
+                // Form content
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Repository picker (create mode only)
+                        if viewModel.isCreateMode {
+                            RepositoryPickerSection(viewModel: viewModel)
+                        }
+
+                        // Title field
+                        TitleSection(viewModel: viewModel)
+
+                        // Body editor - calculate available height
+                        BodySection(
+                            viewModel: viewModel,
+                            availableHeight: calculateBodyHeight(windowHeight: geometry.size.height)
+                        )
+
+                        // Initial comment (create mode only) - fixed height
+                        if viewModel.isCreateMode {
+                            InitialCommentSection(viewModel: viewModel)
+                        }
+
+                        // Labels section
+                        LabelPickerSection(viewModel: viewModel)
+
+                        // State picker (edit mode only)
+                        if !viewModel.isCreateMode {
+                            StatePickerSection(viewModel: viewModel)
+                        }
+
+                        // Validation errors
+                        if !viewModel.validationErrors.isEmpty {
+                            ValidationErrorsView(errors: viewModel.validationErrors)
+                        }
+
+                        // Error message
+                        if let errorMessage = viewModel.errorMessage {
+                            ErrorMessageView(message: errorMessage)
+                        }
                     }
+                    .padding()
+                }
 
-                    // Title field
-                    TitleSection(viewModel: viewModel)
+                Divider()
 
-                    // Body editor
-                    BodySection(viewModel: viewModel)
-
-                    // Initial comment (create mode only)
-                    if viewModel.isCreateMode {
-                        InitialCommentSection(viewModel: viewModel)
+                // Footer
+                HStack {
+                    Button("Cancel") {
+                        dismiss()
                     }
+                    .buttonStyle(.bordered)
 
-                    // Labels section
-                    LabelPickerSection(viewModel: viewModel)
+                    Spacer()
 
-                    // State picker (edit mode only)
-                    if !viewModel.isCreateMode {
-                        StatePickerSection(viewModel: viewModel)
+                    Button(viewModel.isCreateMode ? "Create Issue" : "Save Changes") {
+                        Task {
+                            do {
+                                let issue = try await viewModel.submit()
+                                onSuccess?(issue)
+                                dismiss()
+                            } catch {
+                                // Error is already set in viewModel
+                            }
+                        }
                     }
-
-                    // Validation errors
-                    if !viewModel.validationErrors.isEmpty {
-                        ValidationErrorsView(errors: viewModel.validationErrors)
-                    }
-
-                    // Error message
-                    if let errorMessage = viewModel.errorMessage {
-                        ErrorMessageView(message: errorMessage)
-                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(viewModel.isSubmitting)
                 }
                 .padding()
             }
-
-            Divider()
-
-            // Footer
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button(viewModel.isCreateMode ? "Create Issue" : "Save Changes") {
-                    Task {
-                        do {
-                            let issue = try await viewModel.submit()
-                            onSuccess?(issue)
-                            dismiss()
-                        } catch {
-                            // Error is already set in viewModel
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.isSubmitting)
-            }
-            .padding()
         }
-        .frame(width: 800, height: viewModel.isCreateMode ? 900 : 730)  // Set size of a new issue window
         .task {
             await viewModel.loadRepositories()
             // Load labels for edit mode (repository is already known)
@@ -108,6 +112,27 @@ struct IssueFormSheet: View {
                 await viewModel.loadLabels()
             }
         }
+    }
+
+    /// Calculate available height for the Description editor
+    private func calculateBodyHeight(windowHeight: CGFloat) -> CGFloat {
+        // Base calculation: window height minus header, footer, padding, other sections
+        var heightToSubtract: CGFloat = 140 // Header + footer + padding
+
+        if viewModel.isCreateMode {
+            heightToSubtract += 100 // Repository picker
+            heightToSubtract += 310 // Initial comment section (250 + spacing + label)
+        }
+
+        heightToSubtract += 70  // Title field
+        heightToSubtract += 150 // Labels section (approximate)
+
+        if !viewModel.isCreateMode {
+            heightToSubtract += 80  // State picker (edit mode only)
+        }
+
+        let availableHeight = windowHeight - heightToSubtract
+        return max(250, availableHeight) // Minimum 250px
     }
 }
 
@@ -181,6 +206,7 @@ struct TitleSection: View {
 // MARK: - Body Section
 struct BodySection: View {
     @ObservedObject var viewModel: IssueFormViewModel
+    let availableHeight: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -195,7 +221,7 @@ struct BodySection: View {
             }
 
             MarkdownEditorView(text: $viewModel.body, placeholder: "Add a description...")
-                .frame(height: 280)
+                .frame(height: availableHeight)
                 .border(Color.secondary.opacity(0.2), width: 1)
                 .cornerRadius(4)
         }
@@ -219,7 +245,7 @@ struct InitialCommentSection: View {
             }
 
             MarkdownEditorView(text: $viewModel.initialComment, placeholder: "Add an initial comment...")
-                .frame(height: 200)
+                .frame(height: 250)
                 .border(Color.secondary.opacity(0.2), width: 1)
                 .cornerRadius(4)
         }

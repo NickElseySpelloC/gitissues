@@ -33,6 +33,8 @@ struct IssueFormWindowData: Hashable, Codable {
         let body: String?
         let state: String
         let repositoryId: String
+        let repositoryOwner: String
+        let repositoryName: String
         let labelIds: [String]
     }
 

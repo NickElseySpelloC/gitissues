@@ -16,31 +16,34 @@ struct CommentFormSheet: View {
     var currentIssue: Issue?
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text(viewModel.isEditMode ? "Edit Comment" : "Add Comment")
-                    .font(.headline)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text(viewModel.isEditMode ? "Edit Comment" : "Add Comment")
+                        .font(.headline)
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-            }
-            .padding()
+                .padding()
 
-            Divider()
+                Divider()
 
-            // Form content
-            ScrollView {
+                // Form content - use calculated height
                 VStack(alignment: .leading, spacing: 16) {
                     // Body editor
-                    CommentBodySection(viewModel: viewModel)
+                    CommentBodySection(
+                        viewModel: viewModel,
+                        availableHeight: geometry.size.height - 140 // Subtract header + footer height
+                    )
 
                     // Validation errors
                     if !viewModel.validationErrors.isEmpty {
@@ -53,59 +56,60 @@ struct CommentFormSheet: View {
                     }
                 }
                 .padding()
-            }
+                .frame(maxHeight: .infinity)
 
-            Divider()
+                Divider()
 
-            // Footer
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-                .buttonStyle(.bordered)
+                // Footer
+                HStack {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .buttonStyle(.bordered)
 
-                Spacer()
+                    Spacer()
 
-                // Show "Save and Close Issue" button if issue is open
-                if let issue = currentIssue, issue.state == .open {
-                    Button("Save and Close Issue") {
+                    // Show "Save and Close Issue" button if issue is open
+                    if let issue = currentIssue, issue.state == .open {
+                        Button("Save and Close Issue") {
+                            Task {
+                                do {
+                                    let comment = try await viewModel.submit()
+                                    onSuccessAndClose?(comment)
+                                    dismiss()
+                                } catch {
+                                    // Error is already set in viewModel
+                                }
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(viewModel.isSubmitting)
+                    }
+
+                    Button(viewModel.isEditMode ? "Save Changes" : "Add Comment") {
                         Task {
                             do {
                                 let comment = try await viewModel.submit()
-                                onSuccessAndClose?(comment)
+                                onSuccess?(comment)
                                 dismiss()
                             } catch {
                                 // Error is already set in viewModel
                             }
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
                     .disabled(viewModel.isSubmitting)
                 }
-
-                Button(viewModel.isEditMode ? "Save Changes" : "Add Comment") {
-                    Task {
-                        do {
-                            let comment = try await viewModel.submit()
-                            onSuccess?(comment)
-                            dismiss()
-                        } catch {
-                            // Error is already set in viewModel
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.isSubmitting)
+                .padding()
             }
-            .padding()
         }
-        .frame(width: 700, height: 500) // Set size of comment edit window
     }
 }
 
 // MARK: - Comment Body Section
 struct CommentBodySection: View {
     @ObservedObject var viewModel: CommentFormViewModel
+    let availableHeight: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -120,7 +124,7 @@ struct CommentBodySection: View {
             }
 
             MarkdownEditorView(text: $viewModel.body, placeholder: "Write your comment...")
-                .frame(height: 330)
+                .frame(height: max(200, availableHeight - 40))
                 .border(Color.secondary.opacity(0.2), width: 1)
                 .cornerRadius(4)
         }
@@ -141,6 +145,9 @@ class CommentFormViewModel: ObservableObject {
     // Dependencies
     private let apiService: GitHubAPIService
     private let mode: CommentFormMode
+
+    // Original data for lightweight edit mode
+    private var originalCommentData: CommentFormWindowData.CommentData?
 
     // Form mode
     enum CommentFormMode {
@@ -175,6 +182,7 @@ class CommentFormViewModel: ObservableObject {
         case .edit:
             if let data = commentData {
                 self.body = data.body
+                self.originalCommentData = data
             }
         }
     }
@@ -227,8 +235,11 @@ class CommentFormViewModel: ObservableObject {
                 )
 
             case .edit(let existingComment):
+                // Use original data if available (lightweight mode), otherwise use existing comment
+                let commentId = originalCommentData?.commentId ?? existingComment.id
+
                 comment = try await apiService.updateComment(
-                    commentId: existingComment.id,
+                    commentId: commentId,
                     body: body
                 )
             }

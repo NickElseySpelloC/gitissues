@@ -205,6 +205,13 @@ struct MarkdownEditorView: NSViewRepresentable {
                 // Make editor globally accessible
                 window.simplemde = simplemde;
 
+                // Refresh editor on window resize to ensure proper display
+                window.addEventListener('resize', function() {
+                    if (simplemde && simplemde.codemirror) {
+                        simplemde.codemirror.refresh();
+                    }
+                });
+
                 console.log('SimpleMDE editor initialized successfully');
             </script>
         </body>

@@ -22,12 +22,44 @@ struct IssueFormWindow: View {
             }
         )
         .frame(
-            minWidth: 600, idealWidth: 800, maxWidth: 1200,
-            minHeight: 700, idealHeight: windowData.mode == .create ? 900 : 730, maxHeight: 1400
+            minWidth: 600, maxWidth: 1200,
+            minHeight: 700, maxHeight: 1400
         )
         .background(WindowAccessor { window in
-            // Use macOS native window frame autosave
-            window.setFrameAutosaveName("IssueFormWindow-\(windowData.mode.rawValue)")
+            let autosaveName = "GitIssues.IssueFormWindow.\(windowData.mode.rawValue)"
+
+            // Try to restore saved frame
+            if let savedFrameString = UserDefaults.standard.string(forKey: autosaveName) {
+                let savedFrame = NSRectFromString(savedFrameString)
+                window.setFrame(savedFrame, display: false)
+            } else {
+                // No saved frame - set default
+                let defaultWidth: CGFloat = 800
+                let defaultHeight: CGFloat = windowData.mode == .create ? 900 : 730
+                let screenFrame = NSScreen.main?.visibleFrame ?? .zero
+                let x = (screenFrame.width - defaultWidth) / 2 + screenFrame.minX
+                let y = (screenFrame.height - defaultHeight) / 2 + screenFrame.minY
+                window.setFrame(NSRect(x: x, y: y, width: defaultWidth, height: defaultHeight), display: true)
+            }
+
+            // Set up observer to save frame when window moves or resizes
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didResizeNotification,
+                object: window,
+                queue: .main
+            ) { _ in
+                let frameString = NSStringFromRect(window.frame)
+                UserDefaults.standard.set(frameString, forKey: autosaveName)
+            }
+
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didMoveNotification,
+                object: window,
+                queue: .main
+            ) { _ in
+                let frameString = NSStringFromRect(window.frame)
+                UserDefaults.standard.set(frameString, forKey: autosaveName)
+            }
         })
     }
 
@@ -48,7 +80,7 @@ struct IssueFormWindow: View {
                 state: .open,
                 createdAt: Date(),
                 updatedAt: Date(),
-                repository: Repository(id: "", name: "", fullName: "", owner: User(id: "", login: "", avatarUrl: ""), isPrivate: false),
+                repository: Repository(id: "", name: "", owner: User(id: "", login: "", avatarUrl: ""), isPrivate: false),
                 labels: [],
                 assignees: [],
                 author: nil
@@ -62,21 +94,4 @@ struct IssueFormWindow: View {
             issueData: windowData.issueData
         )
     }
-}
-
-// Helper view to access NSWindow
-struct WindowAccessor: NSViewRepresentable {
-    let onWindowConfigured: (NSWindow) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            if let window = view.window {
-                self.onWindowConfigured(window)
-            }
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
 }

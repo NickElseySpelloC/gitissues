@@ -143,6 +143,8 @@ struct ContentView: View {
                                                 body: issue.body,
                                                 state: issue.state.rawValue,
                                                 repositoryId: issue.repository.id,
+                                                repositoryOwner: issue.repository.owner.login,
+                                                repositoryName: issue.repository.name,
                                                 labelIds: issue.labels.map { $0.id }
                                             )
                                             let windowData = IssueFormWindowData(
@@ -221,6 +223,8 @@ struct ContentView: View {
                                         body: selected.body,
                                         state: selected.state.rawValue,
                                         repositoryId: selected.repository.id,
+                                        repositoryOwner: selected.repository.owner.login,
+                                        repositoryName: selected.repository.name,
                                         labelIds: selected.labels.map { $0.id }
                                     )
                                     let windowData = IssueFormWindowData(
@@ -369,23 +373,6 @@ struct ContentView: View {
             }
         }
     }
-}
-
-// Helper view to access NSWindow
-struct WindowAccessor: NSViewRepresentable {
-    let onWindowConfigured: (NSWindow) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            if let window = view.window {
-                self.onWindowConfigured(window)
-            }
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
 struct IssueRow: View {

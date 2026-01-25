@@ -33,6 +33,11 @@ class IssueFormViewModel: ObservableObject {
     private let apiService: GitHubAPIService
     private let mode: IssueFormMode
 
+    // Original data for lightweight edit mode (used for comparison)
+    private var originalIssueData: IssueFormWindowData.IssueData?
+    private var repositoryOwner: String?
+    private var repositoryName: String?
+
     // Form mode
     enum IssueFormMode {
         case create
@@ -76,6 +81,9 @@ class IssueFormViewModel: ObservableObject {
                 self.selectedState = IssueState(rawValue: data.state) ?? .open
                 self.selectedRepositoryId = data.repositoryId
                 self.selectedLabelIds = Set(data.labelIds)
+                self.repositoryOwner = data.repositoryOwner
+                self.repositoryName = data.repositoryName
+                self.originalIssueData = data
             }
         }
     }
@@ -101,16 +109,27 @@ class IssueFormViewModel: ObservableObject {
             return
         }
 
-        // Find the repository from available repositories or from the editing issue
-        let repository: Repository?
+        // Get owner and name based on mode
+        let owner: String?
+        let name: String?
+
         switch mode {
         case .create:
-            repository = availableRepositories.first { $0.id == repositoryId }
-        case .edit(let issue):
-            repository = issue.repository
+            // Find the repository from available repositories
+            if let repository = availableRepositories.first(where: { $0.id == repositoryId }) {
+                owner = repository.owner.login
+                name = repository.name
+            } else {
+                owner = nil
+                name = nil
+            }
+        case .edit:
+            // Use stored repository info from lightweight initializer
+            owner = repositoryOwner
+            name = repositoryName
         }
 
-        guard let repo = repository else {
+        guard let ownerLogin = owner, let repoName = name else {
             availableLabels = []
             return
         }
@@ -118,8 +137,8 @@ class IssueFormViewModel: ObservableObject {
         isLoadingLabels = true
         do {
             availableLabels = try await apiService.fetchAllRepositoryLabels(
-                owner: repo.owner.login,
-                repo: repo.name
+                owner: ownerLogin,
+                repo: repoName
             )
         } catch {
             errorMessage = "Failed to load labels: \(error.localizedDescription)"
@@ -209,33 +228,55 @@ class IssueFormViewModel: ObservableObject {
                 }
 
             case .edit(let existingIssue):
+                // Use original data if available (lightweight mode), otherwise use existing issue
+                let originalTitle: String
+                let originalBody: String?
+                let originalState: IssueState
+                let originalLabelIds: Set<String>
+                let issueId: String
+
+                if let originalData = originalIssueData {
+                    // Lightweight mode - use stored original data
+                    originalTitle = originalData.title
+                    originalBody = originalData.body
+                    originalState = IssueState(rawValue: originalData.state) ?? .open
+                    originalLabelIds = Set(originalData.labelIds)
+                    issueId = originalData.issueId
+                } else {
+                    // Full mode - use existing issue
+                    originalTitle = existingIssue.title
+                    originalBody = existingIssue.body
+                    originalState = existingIssue.state
+                    originalLabelIds = Set(existingIssue.labels.map { $0.id })
+                    issueId = existingIssue.id
+                }
+
                 // Only send changed fields
-                let titleChanged = title != existingIssue.title
-                let bodyChanged = (body.isEmpty ? nil : body) != existingIssue.body
-                let stateChanged = selectedState != existingIssue.state
+                let titleChanged = title != originalTitle
+                let bodyChanged = (body.isEmpty ? nil : body) != originalBody
+                let stateChanged = selectedState != originalState
 
                 issue = try await apiService.updateIssue(
-                    issueId: existingIssue.id,
+                    issueId: issueId,
                     title: titleChanged ? title : nil,
                     body: bodyChanged ? (body.isEmpty ? nil : body) : nil,
                     state: stateChanged ? selectedState : nil
                 )
 
                 // Handle label changes
-                let existingLabelIds = Set(existingIssue.labels.map { $0.id })
-                let labelsToAdd = selectedLabelIds.subtracting(existingLabelIds)
-                let labelsToRemove = existingLabelIds.subtracting(selectedLabelIds)
+                let labelsToAdd = selectedLabelIds.subtracting(originalLabelIds)
+                let labelsToRemove = originalLabelIds.subtracting(selectedLabelIds)
 
                 if !labelsToAdd.isEmpty {
                     try await apiService.addLabelsToIssue(
-                        issueId: existingIssue.id,
+                        issueId: issueId,
                         labelIds: Array(labelsToAdd)
                     )
                 }
 
                 if !labelsToRemove.isEmpty {
                     try await apiService.removeLabelsFromIssue(
-                        issueId: existingIssue.id,
+                        issueId: issueId,
                         labelIds: Array(labelsToRemove)
                     )
                 }

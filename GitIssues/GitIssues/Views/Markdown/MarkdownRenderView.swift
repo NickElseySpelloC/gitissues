@@ -16,6 +16,7 @@ struct MarkdownRenderView: View {
     @State private var renderedHTML: String?
     @State private var isLoading = true
     @State private var error: String?
+    @State private var contentHeight: CGFloat = 100
 
     var body: some View {
         Group {
@@ -27,7 +28,8 @@ struct MarkdownRenderView: View {
                     .foregroundColor(.secondary)
                     .padding()
             } else if let html = renderedHTML {
-                MarkdownWebView(html: html)
+                MarkdownWebView(html: html, contentHeight: $contentHeight)
+                    .frame(height: contentHeight)
             }
         }
         .task {
@@ -186,19 +188,46 @@ struct MarkdownRenderView: View {
     }
 }
 
-/// WKWebView wrapper for displaying HTML
+/// WKWebView wrapper for displaying HTML with auto-height
 struct MarkdownWebView: NSViewRepresentable {
     let html: String
+    @Binding var contentHeight: CGFloat
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground") // Transparent background
+        webView.navigationDelegate = context.coordinator
 
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        context.coordinator.contentHeight = $contentHeight
         webView.loadHTMLString(html, baseURL: nil)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(contentHeight: $contentHeight)
+    }
+
+    class Coordinator: NSObject, WKNavigationDelegate {
+        var contentHeight: Binding<CGFloat>
+
+        init(contentHeight: Binding<CGFloat>) {
+            self.contentHeight = contentHeight
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // Calculate content height after page loads
+            webView.evaluateJavaScript("document.body.scrollHeight") { result, error in
+                if let height = result as? CGFloat {
+                    DispatchQueue.main.async {
+                        // Add 25px buffer to prevent content cutoff
+                        self.contentHeight.wrappedValue = max(height + 25, 60)
+                    }
+                }
+            }
+        }
     }
 }
