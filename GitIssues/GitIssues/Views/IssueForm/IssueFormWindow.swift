@@ -35,7 +35,7 @@ struct IssueFormWindow: View {
             } else {
                 // No saved frame - set default
                 let defaultWidth: CGFloat = 800
-                let defaultHeight: CGFloat = windowData.mode == .create ? 900 : 730
+                let defaultHeight: CGFloat = windowData.mode == .create ? 900 : 820
                 let screenFrame = NSScreen.main?.visibleFrame ?? .zero
                 let x = (screenFrame.width - defaultWidth) / 2 + screenFrame.minX
                 let y = (screenFrame.height - defaultHeight) / 2 + screenFrame.minY
