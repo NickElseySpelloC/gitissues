@@ -162,6 +162,10 @@ struct MarkdownEditorView: NSViewRepresentable {
                     .cm-s-paper .CodeMirror-code {
                         color: #c9d1d9;
                     }
+
+                    .CodeMirror-cursor {
+                        border-left-color: #ffffff !important;
+                    }
                 }
 
                 #editor-container {
@@ -211,8 +215,6 @@ struct MarkdownEditorView: NSViewRepresentable {
                         simplemde.codemirror.refresh();
                     }
                 });
-
-                console.log('SimpleMDE editor initialized successfully');
             </script>
         </body>
         </html>

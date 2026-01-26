@@ -158,6 +158,29 @@ struct ContentView: View {
                                         SwiftUI.Label("Edit Issue", systemImage: "pencil")
                                     }
 
+                                    Button {
+                                        Task {
+                                            if let accessToken = authManager.getAccessToken() {
+                                                let apiService = GitHubAPIService(accessToken: accessToken)
+                                                do {
+                                                    _ = try await apiService.createIssue(
+                                                        repositoryId: issue.repository.id,
+                                                        title: issue.title + " copy",
+                                                        body: issue.body,
+                                                        labelIds: issue.labels.map { $0.id }
+                                                    )
+                                                    await viewModel.viewModel?.loadIssues(afterDelay: 1.5)
+                                                } catch {
+                                                    // Could show error alert here
+                                                }
+                                            }
+                                        }
+                                    } label: {
+                                        SwiftUI.Label("Clone Issue", systemImage: "doc.on.doc")
+                                    }
+
+                                    Divider()
+
                                     // Close/Reopen issue based on current state
                                     if issue.state == .open {
                                         Button {

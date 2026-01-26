@@ -11,8 +11,12 @@ import SwiftUI
 struct GitIssuesApp: App {
     @StateObject private var authManager = OAuth2Manager()
     @State private var showEnvironmentCredentialsAlert = false
+    @State private var showMissingCredentialsAlert = false
 
     init() {
+        // Initialize appearance service to apply saved theme
+        _ = AppearanceService.shared
+
         // Check if environment variables exist but credentials are not saved
         let credentialsStorage = CredentialsStorage()
         let hasStoredCredentials = credentialsStorage.getClientID() != nil &&
@@ -23,39 +27,19 @@ struct GitIssuesApp: App {
 
         if hasEnvCredentials && !hasStoredCredentials {
             _showEnvironmentCredentialsAlert = State(initialValue: true)
+        } else if !hasStoredCredentials && !hasEnvCredentials {
+            // No credentials at all - show warning
+            _showMissingCredentialsAlert = State(initialValue: true)
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if authManager.isAuthenticated {
-                    ContentView()
-                } else {
-                    LoginView(authManager: authManager)
-                }
-            }
-            .environmentObject(authManager)
-            .onOpenURL { url in
-                // Handle OAuth callback URL
-                if url.scheme == "gitissues" {
-                    Task {
-                        do {
-                            try await authManager.handleCallback(url: url)
-                        } catch {
-                            print("OAuth callback error: \(error.localizedDescription)")
-                        }
-                    }
-                }
-            }
-            .alert("Environment Variables Detected", isPresented: $showEnvironmentCredentialsAlert) {
-                Button("Open Settings") {
-                    openSettings()
-                }
-                Button("Dismiss", role: .cancel) { }
-            } message: {
-                Text("GitHub OAuth credentials were found in environment variables. Would you like to save them to the app's secure storage?")
-            }
+            MainAppView(
+                authManager: authManager,
+                showEnvironmentCredentialsAlert: $showEnvironmentCredentialsAlert,
+                showMissingCredentialsAlert: $showMissingCredentialsAlert
+            )
         }
         .commands {
             CommandGroup(replacing: .newItem) { }
@@ -64,6 +48,7 @@ struct GitIssuesApp: App {
         // Settings window
         Settings {
             SettingsView()
+                .environmentObject(authManager)
         }
 
         // Issue Form Window
@@ -83,11 +68,60 @@ struct GitIssuesApp: App {
         }
     }
 
-    @MainActor
-    private func openSettings() {
-        // Open settings window after a brief delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+}
+
+// MARK: - Main App View
+struct MainAppView: View {
+    @ObservedObject var authManager: OAuth2Manager
+    @Binding var showEnvironmentCredentialsAlert: Bool
+    @Binding var showMissingCredentialsAlert: Bool
+    @Environment(\.openSettings) private var openSettingsAction
+
+    var body: some View {
+        Group {
+            if authManager.isAuthenticated {
+                ContentView()
+            } else {
+                LoginView(authManager: authManager)
+            }
+        }
+        .environmentObject(authManager)
+        .onOpenURL { url in
+            // Handle OAuth callback URL
+            if url.scheme == "gitissues" {
+                Task {
+                    do {
+                        try await authManager.handleCallback(url: url)
+                    } catch {
+                        print("OAuth callback error: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+        .alert("Environment Variables Detected", isPresented: $showEnvironmentCredentialsAlert) {
+            Button("Open Settings") {
+                handleOpenSettings()
+            }
+            Button("Dismiss", role: .cancel) { }
+        } message: {
+            Text("GitHub OAuth credentials were found in environment variables. Would you like to save them to the app's secure storage?")
+        }
+        .alert("OAuth Credentials Required", isPresented: $showMissingCredentialsAlert) {
+            Button("Open Settings") {
+                handleOpenSettings()
+            }
+            Button("Dismiss", role: .cancel) { }
+        } message: {
+            Text("GitHub OAuth Client ID and Secret are missing. Please configure them in Settings to use GitIssues.")
+        }
+    }
+
+    private func handleOpenSettings() {
+        if #available(macOS 14.0, *) {
+            openSettingsAction()
+        } else {
+            // Fallback for older macOS versions
+            NSApp.sendAction(Selector("showPreferencesWindow:"), to: nil, from: nil)
         }
     }
 }

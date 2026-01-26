@@ -51,8 +51,6 @@ class IssuesListViewModel: ObservableObject {
 
     /// Loads issues from the API with optional delay for GitHub sync
     func loadIssues(afterDelay delay: TimeInterval = 0) async {
-        print("DEBUG: Starting loadIssues() with delay: \(delay)s")
-
         // Add delay if requested (for GitHub sync after create/delete)
         if delay > 0 {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -64,9 +62,7 @@ class IssuesListViewModel: ObservableObject {
         do {
             // Fetch viewer login if not already fetched
             if viewerLogin == nil {
-                print("DEBUG: Fetching viewer login")
                 viewerLogin = try await apiService.fetchViewerLogin()
-                print("DEBUG: Viewer login: \(viewerLogin ?? "nil")")
             }
 
             // Build visibility filter for server-side query
@@ -80,18 +76,14 @@ class IssuesListViewModel: ObservableObject {
                 visibility = "private"
             }
 
-            print("DEBUG: Fetching issues with states: \(String(describing: filterOptions.stateFilter.issueStates)), visibility: \(visibility ?? "all")")
             let issues = try await apiService.fetchAllIssues(
                 states: filterOptions.stateFilter.issueStates,
                 repositoryFullNames: nil, // Keep repository filtering client-side
                 visibility: visibility
             )
-            print("DEBUG: Fetched \(issues.count) issues")
             self.allIssues = issues
             self.isLoading = false
-            print("DEBUG: loadIssues() completed successfully")
         } catch {
-            print("DEBUG: Error loading issues: \(error)")
             self.errorMessage = error.localizedDescription
             self.isLoading = false
         }
@@ -99,10 +91,8 @@ class IssuesListViewModel: ObservableObject {
 
     /// Applies filters and sorting to issues
     private static func applyFiltersAndSort(filterOptions: FilterOptions, to issues: [Issue], pinnedIDs: Set<String>, viewerLogin: String?) -> [Issue] {
-        print("DEBUG: applyFiltersAndSort called with \(issues.count) issues")
         // Filter issues
         let filtered = issues.filter { filterOptions.matches(issue: $0, viewerLogin: viewerLogin) }
-        print("DEBUG: After filtering: \(filtered.count) issues")
 
         // Sort issues
         let sorted = filterOptions.sortOption.sort(filtered)
@@ -146,7 +136,6 @@ class IssuesListViewModel: ObservableObject {
 
     /// Updates the visibility filter
     func setVisibilityFilter(_ filter: VisibilityFilter) {
-        print("DEBUG: setVisibilityFilter called with \(filter)")
         filterOptions.visibilityFilter = filter
 
         // Reload issues with new visibility filter (server-side)
@@ -157,20 +146,16 @@ class IssuesListViewModel: ObservableObject {
 
     /// Updates the involvement filter
     func setInvolvementFilter(_ filter: InvolvementFilter) {
-        print("DEBUG: setInvolvementFilter called with \(filter)")
         var options = filterOptions
         options.involvementFilter = filter
         filterOptions = options
-        print("DEBUG: filterOptions updated, filtered issues count: \(filteredIssues.count)")
     }
 
     /// Updates the sort option
     func setSortOption(_ option: SortOption) {
-        print("DEBUG: setSortOption called with \(option.displayName)")
         var options = filterOptions
         options.sortOption = option
         filterOptions = options
-        print("DEBUG: filterOptions updated, filtered issues count: \(filteredIssues.count)")
     }
 
     /// Updates the search text
@@ -182,17 +167,13 @@ class IssuesListViewModel: ObservableObject {
 
     /// Toggles repository selection
     func toggleRepository(_ repositoryID: String) {
-        print("DEBUG: toggleRepository called with \(repositoryID)")
         var options = filterOptions
         if options.selectedRepositories.contains(repositoryID) {
             options.selectedRepositories.remove(repositoryID)
-            print("DEBUG: Removed repo, now \(options.selectedRepositories.count) selected")
         } else {
             options.selectedRepositories.insert(repositoryID)
-            print("DEBUG: Added repo, now \(options.selectedRepositories.count) selected")
         }
         filterOptions = options
-        print("DEBUG: filterOptions updated, filtered issues count: \(filteredIssues.count)")
     }
 
     /// Clears all repository filters

@@ -8,12 +8,26 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @StateObject private var viewModel = SettingsViewModel()
+    @EnvironmentObject var authManager: OAuth2Manager
+    @StateObject private var appearanceService = AppearanceService.shared
+    @StateObject private var viewModel: SettingsViewModel
+
+    init() {
+        // Note: authManager will be injected via @EnvironmentObject, but we need to
+        // defer creating the viewModel until after the view is rendered with environment
+        _viewModel = StateObject(wrappedValue: SettingsViewModel())
+    }
 
     var body: some View {
         TabView {
+            // General tab
+            GeneralSettingsView(appearanceService: appearanceService)
+                .tabItem {
+                    SwiftUI.Label("General", systemImage: "gearshape.fill")
+                }
+
             // GitHub Authorization tab
-            GitHubAuthView(viewModel: viewModel)
+            GitHubAuthView(viewModel: viewModel, authManager: authManager)
                 .tabItem {
                     SwiftUI.Label("GitHub Authorisation", systemImage: "key.fill")
                 }
@@ -22,8 +36,35 @@ struct SettingsView: View {
     }
 }
 
+struct GeneralSettingsView: View {
+    @ObservedObject var appearanceService: AppearanceService
+
+    var body: some View {
+        Form {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Appearance")
+                        .font(.headline)
+                    Picker("Display Mode", selection: $appearanceService.currentMode) {
+                        ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.radioGroup)
+                    Text("Choose how GitIssues should appear")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+        }
+        .formStyle(.grouped)
+    }
+}
+
 struct GitHubAuthView: View {
     @ObservedObject var viewModel: SettingsViewModel
+    @ObservedObject var authManager: OAuth2Manager
 
     var body: some View {
         Form {
@@ -50,6 +91,8 @@ struct GitHubAuthView: View {
                 HStack {
                     Button("Save Credentials") {
                         viewModel.saveCredentials()
+                        // Reload credentials in OAuth2Manager so they're available immediately
+                        authManager.reloadCredentials()
                     }
                     .disabled(viewModel.isSaving)
 
