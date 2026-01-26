@@ -1,62 +1,3 @@
-//
-//  MarkdownRenderView.swift
-//  GitIssues
-//
-//  Created by Claude Code
-//
-
-import SwiftUI
-import WebKit
-
-/// A view that renders markdown content using GitHub's markdown API
-struct MarkdownRenderView: View {
-    let markdown: String
-    let apiService: GitHubAPIService
-
-    @State private var renderedHTML: String?
-    @State private var isLoading = true
-    @State private var error: String?
-    @State private var contentHeight: CGFloat = 100
-
-    var body: some View {
-        Group {
-            if isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = error {
-                Text("Failed to render markdown: \(error)")
-                    .foregroundColor(.secondary)
-                    .padding()
-            } else if let html = renderedHTML {
-                MarkdownWebView(html: html, contentHeight: $contentHeight)
-                    .frame(height: contentHeight)
-            }
-        }
-        .task {
-            await loadMarkdown()
-        }
-    }
-
-    private func loadMarkdown() async {
-        guard !markdown.isEmpty else {
-            renderedHTML = ""
-            isLoading = false
-            return
-        }
-
-        do {
-            let html = try await apiService.renderMarkdown(markdown)
-            renderedHTML = wrapHTML(html)
-            isLoading = false
-        } catch {
-            self.error = error.localizedDescription
-            isLoading = false
-        }
-    }
-
-    /// Wraps the GitHub-rendered HTML with styling
-    private func wrapHTML(_ html: String) -> String {
-        return """
         <!DOCTYPE html>
         <html>
         <head>
@@ -181,53 +122,41 @@ struct MarkdownRenderView: View {
             </style>
         </head>
         <body>
-            \(html)
+            <h1>Rendered Content H1</h1>
+            <p>This is an example of rendered HTML content with appropriate styling.</p>
+
+            <h2>Rendered Content H2</h2>
+            <p>This is an example of rendered HTML content with appropriate styling.</p>
+
+            <h3>Rendered Content H3</h3>
+            <p>This is an example of rendered HTML content with appropriate styling.</p>
+
+            <h4>Rendered Content 43</h4>
+            <p>This is an example of rendered HTML content with appropriate styling.</p>
+
+            <ul>
+                <li>First item</li>
+                <li>Second item</li>
+                <li>Third item</li>
+            </ul>
+
+            <blockquote>
+                This is a blockquote example to demonstrate styling.
+            </blockquote>
+
+            <pre>
+                xcodebuild archive \
+                -project GitIssues.xcodeproj \
+                -scheme GitIssues \
+                -configuration Release \
+                -destination "generic/platform=macOS" \
+                -archivePath "Build/GitIssues.xcarchive" \
+                -quiet \
+                ONLY_ACTIVE_ARCH=NO \
+                SKIP_INSTALL=NO \
+                BUILD_LIBRARY_FOR_DISTRIBUTION=NO
+            </pre>
+
+            
         </body>
         </html>
-        """
-    }
-}
-
-/// WKWebView wrapper for displaying HTML with auto-height
-struct MarkdownWebView: NSViewRepresentable {
-    let html: String
-    @Binding var contentHeight: CGFloat
-
-    func makeNSView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.setValue(false, forKey: "drawsBackground") // Transparent background
-        webView.navigationDelegate = context.coordinator
-
-        return webView
-    }
-
-    func updateNSView(_ webView: WKWebView, context: Context) {
-        context.coordinator.contentHeight = $contentHeight
-        webView.loadHTMLString(html, baseURL: nil)
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(contentHeight: $contentHeight)
-    }
-
-    class Coordinator: NSObject, WKNavigationDelegate {
-        var contentHeight: Binding<CGFloat>
-
-        init(contentHeight: Binding<CGFloat>) {
-            self.contentHeight = contentHeight
-        }
-
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            // Calculate content height after page loads
-            webView.evaluateJavaScript("document.body.scrollHeight") { result, error in
-                if let height = result as? CGFloat {
-                    DispatchQueue.main.async {
-                        // Add 35px buffer to prevent content cutoff
-                        self.contentHeight.wrappedValue = max(height + 35, 60)
-                    }
-                }
-            }
-        }
-    }
-}

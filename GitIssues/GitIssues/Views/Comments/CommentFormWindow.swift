@@ -39,7 +39,7 @@ struct CommentFormWindow: View {
                 window.setFrame(savedFrame, display: false)
             } else {
                 // No saved frame - set default
-                let defaultWidth: CGFloat = 700
+                let defaultWidth: CGFloat = windowData.mode == .edit ? 700 : 525  // Issue 40
                 let defaultHeight: CGFloat = 500
                 let screenFrame = NSScreen.main?.visibleFrame ?? .zero
                 let x = (screenFrame.width - defaultWidth) / 2 + screenFrame.minX

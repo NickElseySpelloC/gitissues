@@ -130,6 +130,14 @@ struct IssueFormSheet: View {
         if !viewModel.isCreateMode {
             heightToSubtract += 80  // State picker (edit mode only)
         }
+        
+        // Tweak for issue 40
+        if viewModel.isCreateMode {
+            heightToSubtract -= 50
+        }
+        else {
+            heightToSubtract -= 75
+        }
 
         let availableHeight = windowHeight - heightToSubtract
         return max(250, availableHeight) // Minimum 250px
