@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+   PrivacyInfo.xcprivacy
+   GitIssues
+
+   Generated on 27/1/2026
+-->
+<plist version="1.0">
+<dict>
+    <!-- The app does not track users across apps/websites owned by other companies. -->
+    <key>NSPrivacyTracking</key>
+    <false/>
+
+    <!-- The app does not collect data for tracking or other collection purposes. -->
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array/>
+
+    <!-- Required Reason API usage -->
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <!-- Store app-specific preferences/state (e.g., window position, UI appearance). -->
+                <string>CA92.1</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

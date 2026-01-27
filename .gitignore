@@ -26,6 +26,7 @@ build/
 .AppleDouble
 .LSOverride
 ._*
+__MACOSX/
 
 # Swift Package Manager
 .build/
