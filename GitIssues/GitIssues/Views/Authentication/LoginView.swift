@@ -46,18 +46,30 @@ struct LoginView: View {
                 .disabled(authManager.isAuthenticating)
 
                 if authManager.isAuthenticating {
-                    ProgressView("Authenticating...")
+                    ProgressView("Waiting for GitHub authorization…")
                         .padding()
                 }
 
-                Text("You'll be redirected to GitHub to authorize this app")
+                Text("A code will be shown here. Enter it on the GitHub page that opens in your browser.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
             }
 
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Show the Device Flow prompt whenever OAuth2Manager publishes it.
+        .sheet(isPresented: $authManager.isShowingDeviceFlowPrompt) {
+            DeviceFlowPromptView(authManager: authManager)
+        }
+        // Surface any auth errors from OAuth2Manager.
+        .onChange(of: authManager.lastAuthErrorMessage) { _, newValue in
+            guard let msg = newValue, !msg.isEmpty else { return }
+            errorMessage = msg
+            showError = true
+        }
         .alert("Authentication Error", isPresented: $showError) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -73,4 +85,3 @@ struct LoginView: View {
 #Preview {
     LoginView(authManager: OAuth2Manager())
 }
-

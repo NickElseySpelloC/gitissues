@@ -27,6 +27,12 @@ final class OAuth2Manager: ObservableObject {
 
     // MARK: - Scope selection (matches your Settings toggle)
     @AppStorage("allowPrivateRepoAccess") var allowPrivateRepoAccess: Bool = false
+    
+    init() {
+        if tokenStorage.loadAccessToken() != nil {
+            isAuthenticated = true
+        }
+    }
 
     private var currentScope: String {
         // Minimal default vs private repo access.

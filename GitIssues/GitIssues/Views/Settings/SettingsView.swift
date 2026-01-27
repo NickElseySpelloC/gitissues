@@ -45,7 +45,15 @@ struct GeneralSettingsView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("GitHub Access")
                         .font(.headline)
+
                     Toggle("Allow private repository access", isOn: $authManager.allowPrivateRepoAccess)
+                        .onChange(of: authManager.allowPrivateRepoAccess) { _, newValue in
+                            // Re-auth only if the user is currently signed in; otherwise the next login will use the correct scope.
+                            if authManager.isAuthenticated {
+                                authManager.reauthorizeForScopeChange()
+                            }
+                        }
+
                     Text("When enabled, GitIssues will request access to your private repositories. You'll need to re-authenticate with GitHub.")
                         .font(.caption)
                         .foregroundColor(.secondary)
