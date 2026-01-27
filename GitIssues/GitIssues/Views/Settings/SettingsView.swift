@@ -13,7 +13,7 @@ struct SettingsView: View {
 
     var body: some View {
         GeneralSettingsView(appearanceService: appearanceService, authManager: authManager)
-            .frame(width: 500, height: 350)
+            .frame(width: 500, height: 400)
     }
 }
 
@@ -48,8 +48,8 @@ struct GeneralSettingsView: View {
 
                     Toggle("Allow private repository access", isOn: $authManager.allowPrivateRepoAccess)
                         .onChange(of: authManager.allowPrivateRepoAccess) { _, newValue in
-                            // Re-auth only if the user is currently signed in; otherwise the next login will use the correct scope.
-                            if authManager.isAuthenticated {
+                            // If the user turns ON private access while signed in, we must re-auth to request the broader scope.
+                            if authManager.isAuthenticated && newValue {
                                 authManager.reauthorizeForScopeChange()
                             }
                         }
@@ -58,6 +58,22 @@ struct GeneralSettingsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if authManager.isAuthenticated && !authManager.allowPrivateRepoAccess {
+                        Button("Reduce permissions (re-authenticate)") {
+                            // Re-auth with the minimal scope (public_repo user).
+                            authManager.reauthorizeForScopeChange()
+                        }
+                        .padding(.top, 6)
+
+                        Text("If you previously granted private repository access, use this to re-authorize GitIssues with reduced permissions.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+//                        .foregroundColor(.secondary)
+//                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding()

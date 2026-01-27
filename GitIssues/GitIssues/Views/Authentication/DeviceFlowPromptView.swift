@@ -16,6 +16,10 @@ struct DeviceFlowPromptView: View {
             Text("To sign in, enter this code on the GitHub page in your browser:")
                 .foregroundColor(.secondary)
 
+            Text("You can close this window once authorized.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
             codeBlock
 
             HStack(spacing: 12) {

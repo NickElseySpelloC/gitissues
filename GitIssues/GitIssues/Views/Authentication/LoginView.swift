@@ -33,7 +33,7 @@ struct LoginView: View {
                     HStack {
                         Image(systemName: "person.circle.fill")
                             .font(.title3)
-                        Text("Sign in with GitHub")
+                        Text("Connect to GitHub")
                             .font(.headline)
                     }
                     .frame(maxWidth: 300)
