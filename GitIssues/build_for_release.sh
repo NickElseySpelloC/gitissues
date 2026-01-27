@@ -1,10 +1,16 @@
 #!/bin/bash
+# Builds the GitIssues macOS application for release
 set -e
 
 # Configuration
-PROJECT_DIR="$HOME/dev/gitissues/GitIssues"
-
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
+
+# Ensure we're in the project directory
+if [[ "$PWD" != "$PROJECT_DIR" ]]; then
+  echo "Error: Failed to change to project directory"
+  exit 1
+fi
 
 echo "Building GitIssues for release..."
 
