@@ -1,10 +1,3 @@
-//
-//  LoginView.swift
-//  GitIssues
-//
-//  Created by Claude Code
-//
-
 import SwiftUI
 
 struct LoginView: View {
@@ -73,21 +66,11 @@ struct LoginView: View {
     }
 
     private func signIn() {
-        Task {
-            do {
-                try await authManager.startAuthorization()
-            } catch {
-                // Only show errors if authentication is no longer in progress
-                // (Device Flow might still be running)
-                if !authManager.isAuthenticating {
-                    errorMessage = error.localizedDescription
-                    showError = true
-                }
-            }
-        }
+        authManager.signIn()
     }
 }
 
 #Preview {
     LoginView(authManager: OAuth2Manager())
 }
+

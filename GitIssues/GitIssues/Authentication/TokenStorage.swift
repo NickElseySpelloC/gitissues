@@ -1,46 +1,30 @@
-//
-//  TokenStorage.swift
-//  GitIssues
-//
-//  Created by Claude Code
-//
-
 import Foundation
 import Security
 
-/// Manages secure storage of OAuth tokens in the Keychain
-class TokenStorage {
-    private let service = "com.gitissues.tokens"
-    private let account = "github_access_token"
+final class TokenStorage {
 
-    /// Saves the access token to the Keychain
+    private let service = "GitIssues"
+    private let account = "GitHubAccessToken"
+
     func saveAccessToken(_ token: String) {
-        // Delete existing token first
-        deleteAccessToken()
+        let data = token.data(using: .utf8)!
 
-        // Prepare token data
-        guard let tokenData = token.data(using: .utf8) else { return }
-
-        // Create query dictionary
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: tokenData,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
+            kSecAttrAccount as String: account
         ]
 
-        // Add to keychain
-        let status = SecItemAdd(query as CFDictionary, nil)
+        SecItemDelete(query as CFDictionary)
 
-        if status != errSecSuccess {
-            print("Error saving token to keychain: \(status)")
-        }
+        let attributes: [String: Any] = query.merging([
+            kSecValueData as String: data
+        ]) { $1 }
+
+        SecItemAdd(attributes as CFDictionary, nil)
     }
 
-    /// Retrieves the access token from the Keychain
-    func getAccessToken() -> String? {
-        // Create query dictionary
+    func loadAccessToken() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -49,11 +33,9 @@ class TokenStorage {
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
 
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        guard status == errSecSuccess,
-              let data = result as? Data,
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data,
               let token = String(data: data, encoding: .utf8) else {
             return nil
         }
@@ -61,8 +43,7 @@ class TokenStorage {
         return token
     }
 
-    /// Deletes the access token from the Keychain
-    func deleteAccessToken() {
+    func clear() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -72,3 +53,4 @@ class TokenStorage {
         SecItemDelete(query as CFDictionary)
     }
 }
+

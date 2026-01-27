@@ -62,17 +62,5 @@ struct MainAppView: View {
             }
         }
         .environmentObject(authManager)
-        .onOpenURL { url in
-            // Handle OAuth callback URL
-            if url.scheme == "spelloconsulting-gitissues" {
-                Task {
-                    do {
-                        try await authManager.handleCallback(url: url)
-                    } catch {
-                        print("OAuth callback error: \(error.localizedDescription)")
-                    }
-                }
-            }
-        }
     }
 }
