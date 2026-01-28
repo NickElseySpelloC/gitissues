@@ -6,15 +6,11 @@
       "type": "shell",
       "command": "xcodebuild",
       "args": [
-        "-scheme",
-        "GitIssues",
-        "-project",
-        "GitIssues/GitIssues.xcodeproj",
-        "-configuration",
-        "Debug",
-        "-quiet",
-        "-derivedDataPath",
-        "${workspaceFolder}/build",
+        "-scheme", "GitIssues",
+        "-project", "GitIssues/GitIssues.xcodeproj",
+        "-configuration", "Debug",
+        "-quiet", 
+        "-derivedDataPath", "${workspaceFolder}/GitIssues/Build",
         "build"
       ],
       "group": {

@@ -136,7 +136,7 @@ struct IssueFormSheet: View {
             heightToSubtract -= 50
         }
         else {
-            heightToSubtract -= 75
+            heightToSubtract -= 40
         }
 
         let availableHeight = windowHeight - heightToSubtract
