@@ -14,6 +14,8 @@ enum GraphQLError: LocalizedError {
     case serverError(String)
     case decodingError(Error)
     case graphQLErrors([String])
+    case unauthorized
+    case rateLimited(reset: Date?)
 
     var errorDescription: String? {
         switch self {
@@ -29,6 +31,17 @@ enum GraphQLError: LocalizedError {
             return "Failed to decode response: \(error.localizedDescription)"
         case .graphQLErrors(let errors):
             return "GraphQL errors: \(errors.joined(separator: ", "))"
+
+        case .unauthorized:
+            return "Your GitHub session has expired or was revoked. Please reconnect to GitHub."
+        case .rateLimited(let reset):
+            if let reset {
+                let df = DateFormatter()
+                df.dateStyle = .none
+                df.timeStyle = .short
+                return "GitHub rate limit exceeded. Try again after \(df.string(from: reset))."
+            }
+            return "GitHub rate limit exceeded. Please try again later."
         }
     }
 }
@@ -108,6 +121,13 @@ struct AnyCodable: Codable {
 }
 
 class GraphQLClient {
+    private static let userAgent: String = {
+        let bid = Bundle.main.bundleIdentifier ?? "GitIssues"
+        let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        return "GitIssues/\(ver) (\(bid); build \(build))"
+    }()
+
     private let endpoint = "https://api.github.com/graphql"
     private let accessToken: String
 
@@ -127,6 +147,7 @@ class GraphQLClient {
         request.httpMethod = "POST"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
         let graphQLRequest = GraphQLRequest<T>(query: query, variables: variables)
         request.httpBody = try JSONEncoder().encode(graphQLRequest)
@@ -135,6 +156,19 @@ class GraphQLClient {
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw GraphQLError.serverError("Invalid response")
+        }
+
+        // Handle common HTTP errors
+        if httpResponse.statusCode == 401 {
+            throw GraphQLError.unauthorized
+        }
+        if httpResponse.statusCode == 403 {
+            let remaining = httpResponse.value(forHTTPHeaderField: "X-RateLimit-Remaining")
+            if remaining == "0" {
+                let resetStr = httpResponse.value(forHTTPHeaderField: "X-RateLimit-Reset")
+                let resetDate = resetStr.flatMap { TimeInterval($0) }.map { Date(timeIntervalSince1970: $0) }
+                throw GraphQLError.rateLimited(reset: resetDate)
+            }
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {

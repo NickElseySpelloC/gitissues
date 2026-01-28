@@ -7,6 +7,12 @@ import AppKit
 
 @MainActor
 final class OAuth2Manager: ObservableObject {
+    private static let userAgent: String = {
+        let bid = Bundle.main.bundleIdentifier ?? "GitIssues"
+        let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        return "GitIssues/\(ver) (\(bid); build \(build))"
+    }()
 
     // MARK: - Published state
     @Published var isAuthenticated: Bool = false

@@ -8,6 +8,13 @@
 import Foundation
 
 class GitHubAPIService {
+    private static let userAgent: String = {
+        let bid = Bundle.main.bundleIdentifier ?? "GitIssues"
+        let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        return "GitIssues/\(ver) (\(bid); build \(build))"
+    }()
+
     private let graphQLClient: GraphQLClient
     private let accessToken: String
 
@@ -460,6 +467,7 @@ class GitHubAPIService {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
         let body: [String: Any] = [
             "text": markdown,
@@ -467,7 +475,17 @@ class GitHubAPIService {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse {
+            if http.statusCode == 401 {
+                throw GraphQLError.unauthorized
+            }
+            if http.statusCode == 403, http.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0" {
+                let resetStr = http.value(forHTTPHeaderField: "X-RateLimit-Reset")
+                let resetDate = resetStr.flatMap { TimeInterval($0) }.map { Date(timeIntervalSince1970: $0) }
+                throw GraphQLError.rateLimited(reset: resetDate)
+            }
+        }
         guard let html = String(data: data, encoding: .utf8) else {
             throw NSError(domain: "GitHubAPIService", code: 500, userInfo: [
                 NSLocalizedDescriptionKey: "Failed to decode HTML response"

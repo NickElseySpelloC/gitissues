@@ -8,14 +8,15 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.gitissues.oauth</string>
+			<string>com.spelloconsulting.gitissues.oauth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>com.spelloconsulting.gitissues</string>
 				<string>spelloconsulting-gitissues</string>
 			</array>
 		</dict>
 	</array>
 	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.developer-tools</string>	
+	<string>public.app-category.developer-tools</string>
 </dict>
 </plist>
