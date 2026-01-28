@@ -9,7 +9,10 @@ import SwiftUI
 import Combine
 
 struct IssueDetailView: View {
-    @StateObject var viewModel: IssueDetailViewModel
+    @State private var activeCommentWindowId: UUID?
+    @State private var activeIssueFormWindowId: UUID?
+
+    @ObservedObject var viewModel: IssueDetailViewModel
     @Environment(\.openWindow) private var openWindow
     @EnvironmentObject var authManager: OAuth2Manager
     @StateObject private var coordinator = WindowCoordinator.shared
@@ -48,6 +51,7 @@ struct IssueDetailView: View {
                                 issueData: issueData
                             )
                             openWindow(id: WindowIdentifier.issueForm.rawValue, value: windowData)
+                            activeIssueFormWindowId = windowData.id
                         }
                     },
                     onDeleteTapped: {
@@ -109,6 +113,7 @@ struct IssueDetailView: View {
                                 issueState: viewModel.issue.state.rawValue
                             )
                             openWindow(id: WindowIdentifier.commentForm.rawValue, value: windowData)
+                            activeCommentWindowId = windowData.id
                         }
                     },
                     onEditComment: { comment in
@@ -125,6 +130,7 @@ struct IssueDetailView: View {
                                 commentData: commentData
                             )
                             openWindow(id: WindowIdentifier.commentForm.rawValue, value: windowData)
+                            activeCommentWindowId = windowData.id
                         }
                     },
                     onDeleteComment: { comment in
@@ -165,7 +171,8 @@ struct IssueDetailView: View {
                 .store(in: &cancellables)
 
             coordinator.commentFormSuccess
-                .sink { (windowId, comment) in
+            .sink { (windowId, comment) in
+                guard windowId == activeCommentWindowId else { return }
                     Task {
                         await viewModel.loadIssueDetails()
                     }
@@ -173,7 +180,8 @@ struct IssueDetailView: View {
                 .store(in: &cancellables)
 
             coordinator.commentFormSuccessAndClose
-                .sink { (windowId, comment) in
+            .sink { (windowId, comment) in
+                guard windowId == activeCommentWindowId else { return }
                     Task {
                         await viewModel.closeIssue()
                         await viewModel.loadIssueDetails()
