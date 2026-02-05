@@ -193,6 +193,14 @@ class GraphQLClient {
 
             return data
         } catch let error as DecodingError {
+            // Log detailed decoding error
+            print("=== DECODING ERROR ===")
+            print("Error: \(error)")
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("Response JSON:")
+                print(jsonString)
+            }
+            print("======================")
             throw GraphQLError.decodingError(error)
         }
     }

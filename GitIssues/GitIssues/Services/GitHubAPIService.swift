@@ -87,7 +87,8 @@ class GitHubAPIService {
             variables: variables
         )
 
-        let issues = response.search.nodes.map { $0.toIssue() }
+        // Filter out nil nodes (non-Issue types like PRs that don't match the inline fragment)
+        let issues = response.search.nodes.compactMap { $0?.toIssue() }
         let pageInfo = response.search.pageInfo
 
         return (issues, pageInfo.hasNextPage, pageInfo.endCursor)

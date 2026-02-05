@@ -53,9 +53,11 @@ struct GraphQLQueries {
             }
             assignees(first: 10) {
               nodes {
-                id
-                login
-                avatarUrl
+                ... on User {
+                  id
+                  login
+                  avatarUrl
+                }
               }
             }
             author {
@@ -102,9 +104,11 @@ struct GraphQLQueries {
           }
           assignees(first: 20) {
             nodes {
-              id
-              login
-              avatarUrl
+              ... on User {
+                id
+                login
+                avatarUrl
+              }
             }
           }
           author {
@@ -206,9 +210,11 @@ struct GraphQLQueries {
           }
           assignees(first: 10) {
             nodes {
-              id
-              login
-              avatarUrl
+              ... on User {
+                id
+                login
+                avatarUrl
+              }
             }
           }
           author {
@@ -254,9 +260,11 @@ struct GraphQLQueries {
           }
           assignees(first: 10) {
             nodes {
-              id
-              login
-              avatarUrl
+              ... on User {
+                id
+                login
+                avatarUrl
+              }
             }
           }
           author {
@@ -358,7 +366,34 @@ struct AllIssuesResponse: Codable {
 
     struct SearchConnection: Codable {
         let pageInfo: PageInfo
-        let nodes: [IssueNode]
+        let nodes: [IssueNode?]
+
+        enum CodingKeys: String, CodingKey {
+            case pageInfo
+            case nodes
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            pageInfo = try container.decode(PageInfo.self, forKey: .pageInfo)
+
+            // Decode nodes array, gracefully handling empty objects from non-Issue types (like PRs)
+            var nodesContainer = try container.nestedUnkeyedContainer(forKey: .nodes)
+            var decodedNodes: [IssueNode?] = []
+
+            while !nodesContainer.isAtEnd {
+                // Try to decode each node, if it fails (empty object), append nil
+                if let node = try? nodesContainer.decode(IssueNode.self) {
+                    decodedNodes.append(node)
+                } else {
+                    // Skip the empty/invalid node
+                    _ = try? nodesContainer.decode(AnyCodable.self)
+                    decodedNodes.append(nil)
+                }
+            }
+
+            nodes = decodedNodes
+        }
     }
 
     struct PageInfo: Codable {
