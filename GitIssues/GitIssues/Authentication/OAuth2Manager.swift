@@ -42,8 +42,8 @@ final class OAuth2Manager: ObservableObject {
 
     private var currentScope: String {
         // Minimal default vs private repo access.
-        // Keep `user` because your app appears to read user profile details.
-        allowPrivateRepoAccess ? "repo user" : "public_repo user"
+        // Use `read:user` (read-only profile) to avoid requesting email addresses.
+        allowPrivateRepoAccess ? "repo read:user" : "public_repo read:user"
     }
 
     // MARK: - Storage
