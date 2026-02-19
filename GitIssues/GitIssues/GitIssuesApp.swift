@@ -17,12 +17,18 @@ struct GitIssuesApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             MainAppView(authManager: authManager)
         }
         .commands {
+            // Keep the New Item command empty since we don't need File > New
             CommandGroup(replacing: .newItem) { }
+
+            // Add custom commands
+            MainWindowCommands()
         }
+        .defaultPosition(.center)
+        .defaultSize(width: 1200, height: 800)
 
         // Settings window
         Settings {
@@ -62,5 +68,19 @@ struct MainAppView: View {
             }
         }
         .environmentObject(authManager)
+    }
+}
+
+// MARK: - Window Commands
+struct MainWindowCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(after: .windowList) {
+            Button("GitIssues") {
+                openWindow(id: "main")
+            }
+            .keyboardShortcut("0", modifiers: [.command])
+        }
     }
 }

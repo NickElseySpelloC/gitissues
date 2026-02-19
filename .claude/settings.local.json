@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/nick/dev/gitissues log --oneline)",
+      "Bash(swift --version:*)",
+      "Bash(xcodebuild:*)",
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(sips:*)",
+      "Bash(git checkout:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:app.unpkg.com)",
+      "Bash(gh issue view:*)",
+      "WebFetch(domain:swiftwithmajid.com)",
+      "Bash(git stash:*)",
+      "WebFetch(domain:objects.githubusercontent.com)",
+      "Bash(git rm:*)"
+    ]
+  }
+}

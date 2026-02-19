@@ -30,7 +30,11 @@ class IssueDetailViewModel: ObservableObject {
     }
 
     /// Loads the full issue details with comments
-    func loadIssueDetails() async {
+    func loadIssueDetails(afterDelay delay: TimeInterval = 0, allowRetry: Bool = true) async {
+        if delay > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+
         isLoadingComments = true
         errorMessage = nil
 
@@ -42,6 +46,17 @@ class IssueDetailViewModel: ObservableObject {
             )
 
             self.issue = updatedIssue
+
+            // Work around eventual consistency: if we previously had comments and the fetch returns empty,
+            // keep existing comments and retry once after a short delay.
+            if fetchedComments.isEmpty, !self.comments.isEmpty, allowRetry {
+                Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: 800_000_000)
+                    await self?.loadIssueDetails(afterDelay: 0, allowRetry: false)
+                }
+                return
+            }
+
             self.comments = fetchedComments
         } catch {
             errorMessage = error.localizedDescription
@@ -128,3 +143,4 @@ class IssueDetailViewModel: ObservableObject {
         }
     }
 }
+

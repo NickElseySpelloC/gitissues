@@ -160,12 +160,16 @@ struct IssueDetailView: View {
             // Subscribe to coordinator events
             coordinator.issueFormSuccess
                 .sink { (windowId, issue) in
-                    Task {
-                        // Update local issue and refresh details
-                        viewModel.issue = issue
-                        await viewModel.loadIssueDetails()
-                        // Also refresh the main issues list with delay
-                        await viewModel.refreshList(afterDelay: 1.5)
+                    if issue.id == viewModel.issue.id {
+                        Task {
+                            // Reload details (issue + comments) for the currently displayed issue, with a short delay
+                            await viewModel.loadIssueDetails(afterDelay: 0.6)
+                        }
+                    } else {
+                        Task {
+                            // Different issue was updated, just refresh the list
+                            await viewModel.refreshList(afterDelay: 1.5)
+                        }
                     }
                 }
                 .store(in: &cancellables)
@@ -613,3 +617,4 @@ struct FlowLayout: Layout {
         }
     }
 }
+

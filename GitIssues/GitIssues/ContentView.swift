@@ -306,15 +306,8 @@ struct ContentView: View {
             if let selectedIssue = selectedIssue,
                let accessToken = authManager.getAccessToken(),
                let vm = viewModel.viewModel {
-                let apiService = GitHubAPIService(accessToken: accessToken)
-                let detailViewModel = IssueDetailViewModel(
-                    issue: selectedIssue,
-                    apiService: apiService,
-                    pinningService: vm.pinningService, // Share the same service instance
-                    listViewModel: vm // Pass the list view model for updates
-                )
-                IssueDetailView(viewModel: detailViewModel)
-                    .id(selectedIssue.id) // Force view recreation when selection changes
+                IssueDetailHost(issue: selectedIssue, accessToken: accessToken, listViewModel: vm)
+                    .id("\(selectedIssue.id)-\(selectedIssue.updatedAt.timeIntervalSince1970)") // Force view recreation when issue changes
                     .onChange(of: vm.allIssues) { _, newIssues in
                         // Update selected issue to the refreshed version after list changes
                         if let currentId = self.selectedIssue?.id {
@@ -395,6 +388,31 @@ struct ContentView: View {
                 Text("Are you sure you want to delete \"\(issue.title)\"? This action cannot be undone.")
             }
         }
+    }
+}
+
+struct IssueDetailHost: View {
+    let issue: Issue
+    let accessToken: String
+    let listViewModel: IssuesListViewModel
+
+    @StateObject private var viewModel: IssueDetailViewModel
+
+    init(issue: Issue, accessToken: String, listViewModel: IssuesListViewModel) {
+        self.issue = issue
+        self.accessToken = accessToken
+        self.listViewModel = listViewModel
+        let apiService = GitHubAPIService(accessToken: accessToken)
+        _viewModel = StateObject(wrappedValue: IssueDetailViewModel(
+            issue: issue,
+            apiService: apiService,
+            pinningService: listViewModel.pinningService,
+            listViewModel: listViewModel
+        ))
+    }
+
+    var body: some View {
+        IssueDetailView(viewModel: viewModel)
     }
 }
 
