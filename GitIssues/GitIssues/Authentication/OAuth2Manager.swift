@@ -1,12 +1,14 @@
 import Foundation
+import Foundation
 import Combine
 import SwiftUI
+import AuthenticationServices
 #if os(macOS)
 import AppKit
 #endif
 
 @MainActor
-final class OAuth2Manager: ObservableObject {
+final class OAuth2Manager: NSObject, ObservableObject {
     private static let userAgent: String = {
         let bid = Bundle.main.bundleIdentifier ?? "GitIssues"
         let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
@@ -34,7 +36,8 @@ final class OAuth2Manager: ObservableObject {
     // MARK: - Scope selection (matches your Settings toggle)
     @AppStorage("allowPrivateRepoAccess") var allowPrivateRepoAccess: Bool = false
     
-    init() {
+    override init() {
+        super.init()
         if tokenStorage.loadAccessToken() != nil {
             isAuthenticated = true
         }
@@ -196,10 +199,46 @@ final class OAuth2Manager: ObservableObject {
         throw OAuth2Error.deviceFlowFailed("Timed out waiting for authorization.")
     }
 
+    private var authSession: ASWebAuthenticationSession?
+    
     private func openInBrowser(_ url: URL) {
+        // Use ASWebAuthenticationSession for App Store compliance.
+        // Even though device flow doesn't use a callback, we still present
+        // the GitHub page through ASWebAuthenticationSession.
+        // The user will complete authentication in the session, and our polling
+        // will detect when they're done.
+        
+        // We use a dummy callback URL scheme since device flow doesn't need one.
+        let callbackScheme = "gitissues"
+        
+        authSession = ASWebAuthenticationSession(
+            url: url,
+            callbackURLScheme: callbackScheme
+        ) { callbackURL, error in
+            // This completion handler may never be called with a valid callback
+            // since device flow doesn't redirect back to the app.
+            // Our polling mechanism will detect successful authentication.
+            // Users can manually close the session window when they see "success" on GitHub.
+            
+            if let error = error as? ASWebAuthenticationSessionError {
+                if error.code == .canceledLogin {
+                    // User canceled - this is normal, they might close after seeing success
+                    print("Authentication session canceled by user")
+                } else {
+                    print("Authentication session error: \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        // On macOS, we need to set the presentation context provider
         #if os(macOS)
-        NSWorkspace.shared.open(url)
+        authSession?.presentationContextProvider = self
+        authSession?.prefersEphemeralWebBrowserSession = false
         #endif
+        
+        if !authSession!.start() {
+            print("Failed to start ASWebAuthenticationSession")
+        }
     }
     
     func getAccessToken() -> String? {
@@ -256,3 +295,16 @@ private func formURLEncoded(_ params: [String: String]) -> Data {
         .joined(separator: "&")
     return Data(body.utf8)
 }
+
+// MARK: - ASWebAuthenticationPresentationContextProviding
+
+#if os(macOS)
+extension OAuth2Manager: ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        // Return the key window on macOS
+        // This method is called by the system and can access main-actor isolated properties
+        return NSApplication.shared.windows.first { $0.isKeyWindow } ?? NSApplication.shared.windows.first!
+    }
+}
+#endif
+

@@ -1,8 +1,12 @@
 import SwiftUI
+import AuthenticationServices
 
 struct DeviceFlowPromptView: View {
     @ObservedObject var authManager: OAuth2Manager
     @Environment(\.dismiss) private var dismiss
+    
+    @State private var authSession: ASWebAuthenticationSession?
+    @State private var contextProvider: WindowContextProvider = WindowContextProvider()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -93,11 +97,40 @@ struct DeviceFlowPromptView: View {
     }
 
     private func open(_ url: URL) {
+        // Use ASWebAuthenticationSession for App Store compliance
+        let callbackScheme = "gitissues"
+        
+        authSession = ASWebAuthenticationSession(
+            url: url,
+            callbackURLScheme: callbackScheme
+        ) { callbackURL, error in
+            // Device flow doesn't use callbacks - polling handles completion
+            if let error = error as? ASWebAuthenticationSessionError {
+                if error.code != .canceledLogin {
+                    print("Authentication session error: \(error.localizedDescription)")
+                }
+            }
+        }
+        
         #if os(macOS)
-        NSWorkspace.shared.open(url)
+        authSession?.presentationContextProvider = contextProvider
+        authSession?.prefersEphemeralWebBrowserSession = false
         #endif
+        
+        if !authSession!.start() {
+            print("Failed to start ASWebAuthenticationSession from DeviceFlowPromptView")
+        }
     }
 }
+
+#if os(macOS)
+// Helper class to provide presentation context for ASWebAuthenticationSession
+class WindowContextProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        return NSApplication.shared.windows.first { $0.isKeyWindow } ?? NSApplication.shared.windows.first!
+    }
+}
+#endif
 
 #Preview {
     DeviceFlowPromptView(authManager: OAuth2Manager())

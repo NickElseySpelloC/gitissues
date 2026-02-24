@@ -520,8 +520,11 @@ class IssuesListViewModelWrapper: ObservableObject {
         didSet {
             if let viewModel = viewModel {
                 // Forward changes from the nested ViewModel
+                // Schedule the send on the next run loop to avoid publishing during view update
                 viewModel.objectWillChange.sink { [weak self] _ in
-                    self?.objectWillChange.send()
+                    DispatchQueue.main.async {
+                        self?.objectWillChange.send()
+                    }
                 }.store(in: &cancellables)
             }
         }
