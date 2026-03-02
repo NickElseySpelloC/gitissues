@@ -165,12 +165,9 @@ struct IssueDetailView: View {
                             // Reload details (issue + comments) for the currently displayed issue, with a short delay
                             await viewModel.loadIssueDetails(afterDelay: 0.6)
                         }
-                    } else {
-                        Task {
-                            // Different issue was updated, just refresh the list
-                            await viewModel.refreshList(afterDelay: 1.5)
-                        }
                     }
+                    // No else branch needed: ContentView's issueFormSuccess handler already
+                    // upserts the changed issue into the list cache immediately.
                 }
                 .store(in: &cancellables)
 
@@ -189,7 +186,7 @@ struct IssueDetailView: View {
                     Task {
                         await viewModel.closeIssue()
                         await viewModel.loadIssueDetails()
-                        await viewModel.refreshList(afterDelay: 1.5)
+                        // closeIssue() already updates the list cache via upsertIssueInCache
                     }
                 }
                 .store(in: &cancellables)

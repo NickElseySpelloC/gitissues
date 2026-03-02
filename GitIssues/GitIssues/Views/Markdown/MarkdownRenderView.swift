@@ -78,11 +78,29 @@ struct MarkdownRenderView: View {
                     a { color: #58a6ff; }
                     code, pre {
                         background-color: rgba(110, 118, 129, 0.4);
-                        color: #323437;
+                        color: #c9d1d9;
+                    }
+                    pre {
+                        background-color: #161b22;
                     }
                     blockquote {
                         border-left-color: #55606a;
                         color: #a8b3bf;
+                    }
+                    h1, h2 { border-bottom-color: #21262d; }
+                    hr { background-color: #21262d; }
+                    table th, table td {
+                        border-color: #30363d !important;
+                    }
+                    table tr {
+                        background-color: #0d1117 !important;
+                        border-top-color: #30363d !important;
+                    }
+                    table th {
+                        background-color: #161b22 !important;
+                    }
+                    table tr:nth-child(2n) {
+                        background-color: #161b22 !important;
                     }
                 }
                 h1, h2, h3, h4, h5, h6 {

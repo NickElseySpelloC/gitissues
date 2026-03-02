@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var showDeleteConfirmation = false
     @State private var sidebarWidth: CGFloat?
     @State private var cancellables = Set<AnyCancellable>()
+    @State private var scrollToIssueID: String?
 
     private let appStateService = AppStateService()
 
@@ -125,6 +126,7 @@ struct ContentView: View {
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
+                            ScrollViewReader { proxy in
                             List(vm.filteredIssues, selection: $selectedIssue) { issue in
                                 IssueRow(
                                     issue: issue,
@@ -215,6 +217,14 @@ struct ContentView: View {
                                 }
                                 return .ignored
                             }
+                            .onChange(of: scrollToIssueID) { _, newID in
+                                guard let id = newID else { return }
+                                scrollToIssueID = nil
+                                DispatchQueue.main.async {
+                                    proxy.scrollTo(id, anchor: .top)
+                                }
+                            }
+                            } // end ScrollViewReader
                         }
                     } else {
                         ProgressView("Initializing...")
@@ -297,10 +307,14 @@ struct ContentView: View {
             // Subscribe to coordinator events
             coordinator.issueFormSuccess
                 .sink { (windowId, issue) in
+                    let isNew = viewModel.viewModel?.allIssues.first { $0.id == issue.id } == nil
                     // Immediately update the cache — fixes new/edited issues not appearing instantly
                     viewModel.viewModel?.upsertIssueInCache(issue)
-                    // Refresh the selected issue if it was the one that changed
-                    if selectedIssue?.id == issue.id {
+                    if isNew {
+                        // Select and scroll to newly created issues
+                        selectedIssue = issue
+                        scrollToIssueID = issue.id
+                    } else if selectedIssue?.id == issue.id {
                         selectedIssue = issue
                     }
                 }

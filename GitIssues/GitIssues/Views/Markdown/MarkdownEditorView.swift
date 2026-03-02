@@ -141,18 +141,27 @@ struct MarkdownEditorView: NSViewRepresentable {
 
                 /* Dark mode support */
                 @media (prefers-color-scheme: dark) {
-                    .editor-toolbar {
-                        background: rgba(255, 255, 255, 0.05);
-                        border-bottom-color: rgba(255, 255, 255, 0.1);
+                    .editor-toolbar,
+                    .editor-toolbar.preview-active,
+                    .editor-toolbar.fullscreen {
+                        background: #2d2d2d !important;
+                        border-bottom-color: rgba(255, 255, 255, 0.1) !important;
                     }
 
                     .editor-toolbar a {
                         color: #c9d1d9 !important;
+                        background: transparent !important;
+                        border-color: transparent !important;
                     }
 
-                    .editor-toolbar a:hover {
-                        background: rgba(255, 255, 255, 0.1);
-                        border-color: rgba(255, 255, 255, 0.2);
+                    .editor-toolbar a:hover,
+                    .editor-toolbar a.active {
+                        background: rgba(255, 255, 255, 0.1) !important;
+                        border-color: rgba(255, 255, 255, 0.2) !important;
+                    }
+
+                    .editor-toolbar i.separator {
+                        border-color: rgba(255, 255, 255, 0.2) !important;
                     }
 
                     .CodeMirror {
@@ -165,6 +174,59 @@ struct MarkdownEditorView: NSViewRepresentable {
 
                     .CodeMirror-cursor {
                         border-left-color: #ffffff !important;
+                    }
+
+                    /* Preview panel — must be solid to cover the CodeMirror editor beneath */
+                    .editor-preview,
+                    .editor-preview-side {
+                        background: #1e1e1e !important;
+                        color: #c9d1d9 !important;
+                    }
+
+                    /* Tables in preview */
+                    .editor-preview table th,
+                    .editor-preview table td,
+                    .editor-preview-side table th,
+                    .editor-preview-side table td {
+                        border-color: #30363d !important;
+                    }
+
+                    .editor-preview table tr,
+                    .editor-preview-side table tr {
+                        background-color: #1e1e1e !important;
+                        border-top-color: #30363d !important;
+                    }
+
+                    .editor-preview table th,
+                    .editor-preview table tr:nth-child(2n),
+                    .editor-preview-side table th,
+                    .editor-preview-side table tr:nth-child(2n) {
+                        background-color: #2d2d2d !important;
+                    }
+
+                    /* Code blocks in preview */
+                    .editor-preview pre,
+                    .editor-preview-side pre {
+                        background-color: #2d2d2d !important;
+                    }
+
+                    .editor-preview code,
+                    .editor-preview-side code {
+                        background-color: rgba(110, 118, 129, 0.4) !important;
+                        color: #c9d1d9 !important;
+                    }
+
+                    /* Blockquotes in preview */
+                    .editor-preview blockquote,
+                    .editor-preview-side blockquote {
+                        border-left-color: #55606a !important;
+                        color: #a8b3bf !important;
+                    }
+
+                    /* Links in preview */
+                    .editor-preview a,
+                    .editor-preview-side a {
+                        color: #58a6ff !important;
                     }
                 }
 
