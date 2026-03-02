@@ -138,6 +138,34 @@ class IssueDetailViewModel: ObservableObject {
         }
     }
 
+    /// Sets the assignees for the issue
+    func setAssignees(_ assignees: [User]) async {
+        do {
+            try await apiService.setIssueAssignees(
+                issueId: issue.id,
+                currentAssigneeIds: issue.assignees.map { $0.id },
+                newAssigneeIds: assignees.map { $0.id }
+            )
+            let updatedIssue = Issue(
+                id: issue.id,
+                number: issue.number,
+                title: issue.title,
+                body: issue.body,
+                state: issue.state,
+                createdAt: issue.createdAt,
+                updatedAt: issue.updatedAt,
+                repository: issue.repository,
+                labels: issue.labels,
+                assignees: assignees,
+                author: issue.author
+            )
+            self.issue = updatedIssue
+            listViewModel?.upsertIssueInCache(updatedIssue)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     /// Deletes the issue
     func deleteIssue() async {
         do {

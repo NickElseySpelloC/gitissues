@@ -19,6 +19,7 @@ struct IssueDetailView: View {
     @State private var showDeleteConfirmation = false
     @State private var commentToDelete: Comment?
     @State private var showDeleteIssueConfirmation = false
+    @State private var showAssignSheet = false
     @State private var isShareAnimating = false
     @State private var cancellables = Set<AnyCancellable>()
 
@@ -53,6 +54,9 @@ struct IssueDetailView: View {
                             openWindow(id: WindowIdentifier.issueForm.rawValue, value: windowData)
                             activeIssueFormWindowId = windowData.id
                         }
+                    },
+                    onAssignTapped: {
+                        showAssignSheet = true
                     },
                     onDeleteTapped: {
                         showDeleteIssueConfirmation = true
@@ -216,6 +220,17 @@ struct IssueDetailView: View {
         } message: {
             Text("Are you sure you want to delete this issue? This action cannot be undone.")
         }
+        .sheet(isPresented: $showAssignSheet) {
+            AssignIssueSheet(
+                issue: viewModel.issue,
+                apiService: viewModel.apiService,
+                onSave: { users in
+                    showAssignSheet = false
+                    Task { await viewModel.setAssignees(users) }
+                },
+                onCancel: { showAssignSheet = false }
+            )
+        }
     }
 }
 
@@ -226,6 +241,7 @@ struct IssueHeaderView: View {
     let isShareAnimating: Bool
     let onPinToggle: () -> Void
     let onEditTapped: () -> Void
+    let onAssignTapped: () -> Void
     let onDeleteTapped: () -> Void
     let onShareTapped: () -> Void
 
@@ -268,6 +284,15 @@ struct IssueHeaderView: View {
                 }
                 .buttonStyle(.bordered)
                 .help("Edit issue")
+
+                // Assign button
+                Button(action: onAssignTapped) {
+                    Image(systemName: "person.badge.plus")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Assign issue")
 
                 // Pin button
                 Button(action: onPinToggle) {

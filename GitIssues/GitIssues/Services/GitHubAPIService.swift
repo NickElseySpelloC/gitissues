@@ -452,6 +452,76 @@ class GitHubAPIService {
         )
     }
 
+    /// Fetches collaborators for a repository (one page)
+    func fetchCollaborators(owner: String, repo: String, cursor: String? = nil) async throws -> (users: [User], hasNextPage: Bool, endCursor: String?) {
+        var variables: [String: Any] = [
+            "owner": owner,
+            "repo": repo
+        ]
+        if let cursor = cursor {
+            variables["cursor"] = cursor
+        }
+
+        let response: RepositoryCollaboratorsResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.repositoryCollaboratorsQuery,
+            variables: variables
+        )
+
+        guard let collaborators = response.repository.collaborators else {
+            return ([], false, nil)
+        }
+
+        let users = collaborators.nodes.map { $0.toUser() }
+        let pageInfo = collaborators.pageInfo
+        return (users, pageInfo.hasNextPage, pageInfo.endCursor)
+    }
+
+    /// Fetches all collaborators for a repository across all pages
+    func fetchAllCollaborators(owner: String, repo: String) async throws -> [User] {
+        var allUsers: [User] = []
+        var cursor: String? = nil
+        var hasNextPage = true
+
+        while hasNextPage {
+            let (users, nextPage, nextCursor) = try await fetchCollaborators(owner: owner, repo: repo, cursor: cursor)
+            allUsers.append(contentsOf: users)
+            hasNextPage = nextPage
+            cursor = nextCursor
+        }
+
+        return allUsers
+    }
+
+    /// Updates assignees for an issue — adds new ones and removes dropped ones
+    func setIssueAssignees(issueId: String, currentAssigneeIds: [String], newAssigneeIds: [String]) async throws {
+        let currentSet = Set(currentAssigneeIds)
+        let newSet = Set(newAssigneeIds)
+        let toAdd = Array(newSet.subtracting(currentSet))
+        let toRemove = Array(currentSet.subtracting(newSet))
+
+        if !toAdd.isEmpty {
+            let variables: [String: Any] = [
+                "assignableId": issueId,
+                "assigneeIds": toAdd
+            ]
+            let _: AddAssigneesResponse = try await graphQLClient.execute(
+                query: GraphQLQueries.addAssigneesToIssueMutation,
+                variables: variables
+            )
+        }
+
+        if !toRemove.isEmpty {
+            let variables: [String: Any] = [
+                "assignableId": issueId,
+                "assigneeIds": toRemove
+            ]
+            let _: RemoveAssigneesResponse = try await graphQLClient.execute(
+                query: GraphQLQueries.removeAssigneesFromIssueMutation,
+                variables: variables
+            )
+        }
+    }
+
     /// Renders markdown text to HTML using GitHub's rendering API
     /// - Parameter markdown: The markdown text to render
     /// - Returns: Rendered HTML string

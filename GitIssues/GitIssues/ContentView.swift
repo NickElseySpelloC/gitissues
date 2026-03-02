@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var selectedIssue: Issue?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var issueToDelete: Issue?
+    @State private var issueToAssign: Issue?
     @State private var showDeleteConfirmation = false
     @State private var sidebarWidth: CGFloat?
     @State private var cancellables = Set<AnyCancellable>()
@@ -164,6 +165,12 @@ struct ContentView: View {
                                         Task { await vm.cloneIssue(issue) }
                                     } label: {
                                         SwiftUI.Label("Clone Issue", systemImage: "doc.on.doc")
+                                    }
+
+                                    Button {
+                                        issueToAssign = issue
+                                    } label: {
+                                        SwiftUI.Label("Assign Issue", systemImage: "person.badge.plus")
                                     }
 
                                     Divider()
@@ -351,6 +358,19 @@ struct ContentView: View {
         } message: {
             if let issue = issueToDelete {
                 Text("Are you sure you want to delete \"\(issue.title)\"? This action cannot be undone.")
+            }
+        }
+        .sheet(item: $issueToAssign) { issue in
+            if let accessToken = authManager.getAccessToken() {
+                AssignIssueSheet(
+                    issue: issue,
+                    apiService: GitHubAPIService(accessToken: accessToken),
+                    onSave: { users in
+                        issueToAssign = nil
+                        Task { await viewModel.viewModel?.assignIssue(issue, assignees: users) }
+                    },
+                    onCancel: { issueToAssign = nil }
+                )
             }
         }
     }

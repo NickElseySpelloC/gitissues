@@ -358,6 +358,43 @@ struct GraphQLQueries {
       }
     }
     """
+
+    /// Query to fetch collaborators for a repository
+    static let repositoryCollaboratorsQuery = """
+    query RepositoryCollaborators($owner: String!, $repo: String!, $cursor: String, $first: Int = 100) {
+      repository(owner: $owner, name: $repo) {
+        collaborators(first: $first, after: $cursor) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          nodes {
+            id
+            login
+            avatarUrl
+          }
+        }
+      }
+    }
+    """
+
+    /// Mutation to add assignees to an issue
+    static let addAssigneesToIssueMutation = """
+    mutation AddAssignees($assignableId: ID!, $assigneeIds: [ID!]!) {
+      addAssigneesToAssignable(input: {assignableId: $assignableId, assigneeIds: $assigneeIds}) {
+        clientMutationId
+      }
+    }
+    """
+
+    /// Mutation to remove assignees from an issue
+    static let removeAssigneesFromIssueMutation = """
+    mutation RemoveAssignees($assignableId: ID!, $assigneeIds: [ID!]!) {
+      removeAssigneesFromAssignable(input: {assignableId: $assignableId, assigneeIds: $assigneeIds}) {
+        clientMutationId
+      }
+    }
+    """
 }
 
 // Response structures for GraphQL queries
@@ -1033,6 +1070,53 @@ struct RemoveLabelsResponse: Codable {
     let removeLabelsFromLabelable: RemoveLabelsPayload
 
     struct RemoveLabelsPayload: Codable {
+        let clientMutationId: String?
+    }
+}
+
+// Response structure for repository collaborators query
+struct RepositoryCollaboratorsResponse: Codable {
+    let repository: RepositoryCollaborators
+
+    struct RepositoryCollaborators: Codable {
+        let collaborators: CollaboratorsConnection?
+    }
+
+    struct CollaboratorsConnection: Codable {
+        let pageInfo: PageInfo
+        let nodes: [CollaboratorNode]
+    }
+
+    struct PageInfo: Codable {
+        let hasNextPage: Bool
+        let endCursor: String?
+    }
+
+    struct CollaboratorNode: Codable {
+        let id: String
+        let login: String
+        let avatarUrl: String?
+
+        func toUser() -> User {
+            User(id: id, login: login, avatarUrl: avatarUrl)
+        }
+    }
+}
+
+// Response structure for add assignees mutation
+struct AddAssigneesResponse: Codable {
+    let addAssigneesToAssignable: AddAssigneesPayload
+
+    struct AddAssigneesPayload: Codable {
+        let clientMutationId: String?
+    }
+}
+
+// Response structure for remove assignees mutation
+struct RemoveAssigneesResponse: Codable {
+    let removeAssigneesFromAssignable: RemoveAssigneesPayload
+
+    struct RemoveAssigneesPayload: Codable {
         let clientMutationId: String?
     }
 }

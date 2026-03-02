@@ -129,6 +129,33 @@ class IssuesListViewModel: ObservableObject {
         }
     }
 
+    /// Updates assignees for an issue via the API and immediately updates the local cache.
+    func assignIssue(_ issue: Issue, assignees: [User]) async {
+        do {
+            try await apiService.setIssueAssignees(
+                issueId: issue.id,
+                currentAssigneeIds: issue.assignees.map { $0.id },
+                newAssigneeIds: assignees.map { $0.id }
+            )
+            let updated = Issue(
+                id: issue.id,
+                number: issue.number,
+                title: issue.title,
+                body: issue.body,
+                state: issue.state,
+                createdAt: issue.createdAt,
+                updatedAt: issue.updatedAt,
+                repository: issue.repository,
+                labels: issue.labels,
+                assignees: assignees,
+                author: issue.author
+            )
+            upsertIssueInCache(updated)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     /// Clones an issue via the API and immediately adds the copy to the local cache.
     func cloneIssue(_ issue: Issue) async {
         do {
