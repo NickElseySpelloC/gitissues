@@ -99,6 +99,26 @@ struct FilterOptions {
     var searchText: String = ""
 
     func matches(issue: Issue, viewerLogin: String?) -> Bool {
+        // Check state filter
+        switch stateFilter {
+        case .all:
+            break
+        case .open:
+            if issue.state != .open { return false }
+        case .closed:
+            if issue.state != .closed { return false }
+        }
+
+        // Check visibility filter
+        switch visibilityFilter {
+        case .all:
+            break
+        case .publicRepos:
+            if issue.repository.isPrivate { return false }
+        case .privateRepos:
+            if !issue.repository.isPrivate { return false }
+        }
+
         // Check involvement filter
         if let viewerLogin = viewerLogin {
             switch involvementFilter {
@@ -121,9 +141,6 @@ struct FilterOptions {
                 }
             }
         }
-
-        // Visibility filter is now applied server-side in the API query
-        // No need for client-side filtering
 
         // Check repository filter
         if !selectedRepositories.isEmpty {

@@ -90,7 +90,7 @@ struct ContentView: View {
                         if vm.isLoading {
                             ProgressView("Loading issues...")
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else if let error = vm.errorMessage {
+                        } else if let error = vm.errorMessage, vm.allIssues.isEmpty {
                             VStack(spacing: 16) {
                                 Image(systemName: "exclamationmark.triangle")
                                     .font(.system(size: 48))
@@ -159,22 +159,7 @@ struct ContentView: View {
                                     }
 
                                     Button {
-                                        Task {
-                                            if let accessToken = authManager.getAccessToken() {
-                                                let apiService = GitHubAPIService(accessToken: accessToken)
-                                                do {
-                                                    _ = try await apiService.createIssue(
-                                                        repositoryId: issue.repository.id,
-                                                        title: issue.title + " copy",
-                                                        body: issue.body,
-                                                        labelIds: issue.labels.map { $0.id }
-                                                    )
-                                                    await viewModel.viewModel?.loadIssues(afterDelay: 1.5)
-                                                } catch {
-                                                    // Could show error alert here
-                                                }
-                                            }
-                                        }
+                                        Task { await vm.cloneIssue(issue) }
                                     } label: {
                                         SwiftUI.Label("Clone Issue", systemImage: "doc.on.doc")
                                     }
@@ -184,43 +169,13 @@ struct ContentView: View {
                                     // Close/Reopen issue based on current state
                                     if issue.state == .open {
                                         Button {
-                                            Task {
-                                                if let accessToken = authManager.getAccessToken() {
-                                                    let apiService = GitHubAPIService(accessToken: accessToken)
-                                                    do {
-                                                        _ = try await apiService.updateIssue(
-                                                            issueId: issue.id,
-                                                            title: nil,
-                                                            body: nil,
-                                                            state: .closed
-                                                        )
-                                                        await viewModel.viewModel?.loadIssues(afterDelay: 1.5)
-                                                    } catch {
-                                                        print("Error closing issue: \(error)")
-                                                    }
-                                                }
-                                            }
+                                            Task { await vm.closeIssue(issue) }
                                         } label: {
                                             SwiftUI.Label("Close Issue", systemImage: "checkmark.circle")
                                         }
                                     } else {
                                         Button {
-                                            Task {
-                                                if let accessToken = authManager.getAccessToken() {
-                                                    let apiService = GitHubAPIService(accessToken: accessToken)
-                                                    do {
-                                                        _ = try await apiService.updateIssue(
-                                                            issueId: issue.id,
-                                                            title: nil,
-                                                            body: nil,
-                                                            state: .open
-                                                        )
-                                                        await viewModel.viewModel?.loadIssues(afterDelay: 1.5)
-                                                    } catch {
-                                                        print("Error reopening issue: \(error)")
-                                                    }
-                                                }
-                                            }
+                                            Task { await vm.reopenIssue(issue) }
                                         } label: {
                                             SwiftUI.Label("Reopen Issue", systemImage: "arrow.counterclockwise.circle")
                                         }
@@ -289,9 +244,14 @@ struct ContentView: View {
                     Button {
                         Task { await viewModel.viewModel?.loadIssues() }
                     } label: {
-                        Image(systemName: "arrow.clockwise")
+                        if viewModel.viewModel?.isRefreshing == true {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
                     }
-                    .disabled(viewModel.viewModel?.isLoading ?? true)
+                    .disabled(viewModel.viewModel?.isLoading == true || viewModel.viewModel?.isRefreshing == true)
                     .help("Refresh issues")
 
                     Button {
@@ -337,12 +297,11 @@ struct ContentView: View {
             // Subscribe to coordinator events
             coordinator.issueFormSuccess
                 .sink { (windowId, issue) in
-                    Task {
-                        await viewModel.viewModel?.loadIssues(afterDelay: 1.5)
-                        // Update selected issue if needed
-                        if let currentSelectedId = selectedIssue?.id {
-                            selectedIssue = viewModel.viewModel?.allIssues.first { $0.id == currentSelectedId }
-                        }
+                    // Immediately update the cache — fixes new/edited issues not appearing instantly
+                    viewModel.viewModel?.upsertIssueInCache(issue)
+                    // Refresh the selected issue if it was the one that changed
+                    if selectedIssue?.id == issue.id {
+                        selectedIssue = issue
                     }
                 }
                 .store(in: &cancellables)
@@ -365,19 +324,11 @@ struct ContentView: View {
                 issueToDelete = nil
             }
             Button("Delete", role: .destructive) {
-                if let issue = issueToDelete, let accessToken = authManager.getAccessToken() {
+                if let issue = issueToDelete {
                     Task {
-                        let apiService = GitHubAPIService(accessToken: accessToken)
-                        do {
-                            try await apiService.deleteIssue(issueId: issue.id)
-                            // Refresh issues list with delay to allow GitHub to process
-                            await viewModel.viewModel?.loadIssues(afterDelay: 1.5)
-                            // Clear selection if we deleted the selected issue
-                            if selectedIssue?.id == issue.id {
-                                selectedIssue = nil
-                            }
-                        } catch {
-                            print("Error deleting issue: \(error)")
+                        await viewModel.viewModel?.deleteIssue(issue)
+                        if selectedIssue?.id == issue.id {
+                            selectedIssue = nil
                         }
                         issueToDelete = nil
                     }

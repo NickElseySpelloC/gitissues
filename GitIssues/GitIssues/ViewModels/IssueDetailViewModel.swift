@@ -81,11 +81,15 @@ class IssueDetailViewModel: ObservableObject {
 
     /// Deletes a comment
     func deleteComment(_ comment: Comment) async {
+        // Optimistic: remove from list immediately
+        let previousComments = comments
+        comments.removeAll { $0.id == comment.id }
+
         do {
             try await apiService.deleteComment(commentId: comment.id)
-            // Refresh issue details to reload comments
-            await loadIssueDetails()
         } catch {
+            // Revert on failure
+            comments = previousComments
             errorMessage = error.localizedDescription
         }
     }
@@ -112,6 +116,7 @@ class IssueDetailViewModel: ObservableObject {
                 state: .closed
             )
             self.issue = updatedIssue
+            listViewModel?.upsertIssueInCache(updatedIssue)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -127,6 +132,7 @@ class IssueDetailViewModel: ObservableObject {
                 state: .open
             )
             self.issue = updatedIssue
+            listViewModel?.upsertIssueInCache(updatedIssue)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -136,8 +142,7 @@ class IssueDetailViewModel: ObservableObject {
     func deleteIssue() async {
         do {
             try await apiService.deleteIssue(issueId: issue.id)
-            // Refresh the main issues list with delay to allow GitHub to process
-            await refreshList(afterDelay: 1.5)
+            listViewModel?.removeIssueFromCache(id: issue.id)
         } catch {
             errorMessage = error.localizedDescription
         }

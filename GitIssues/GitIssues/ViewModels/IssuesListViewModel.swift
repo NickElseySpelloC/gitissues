@@ -13,6 +13,7 @@ class IssuesListViewModel: ObservableObject {
     @Published var allIssues: [Issue] = []
     @Published var filteredIssues: [Issue] = []
     @Published var isLoading = false
+    @Published var isRefreshing = false
     @Published var errorMessage: String?
     @Published var filterOptions = FilterOptions()
     @Published var pinnedIssueIDs: Set<String> = []
@@ -49,14 +50,19 @@ class IssuesListViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    /// Loads issues from the API with optional delay for GitHub sync
+    /// Loads all issues from the API. Shows a full-screen spinner on first load;
+    /// on subsequent loads keeps existing data visible while refreshing in the background.
     func loadIssues(afterDelay delay: TimeInterval = 0) async {
-        // Add delay if requested (for GitHub sync after create/delete)
         if delay > 0 {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         }
 
-        isLoading = true
+        // First load: show full-screen spinner. Subsequent loads: keep list visible.
+        if allIssues.isEmpty {
+            isLoading = true
+        } else {
+            isRefreshing = true
+        }
         errorMessage = nil
 
         do {
@@ -65,29 +71,80 @@ class IssuesListViewModel: ObservableObject {
                 viewerLogin = try await apiService.fetchViewerLogin()
             }
 
-            // Build visibility filter for server-side query
-            var visibility: String? = nil
-            switch filterOptions.visibilityFilter {
-            case .all:
-                visibility = nil
-            case .publicRepos:
-                visibility = "public"
-            case .privateRepos:
-                visibility = "private"
-            }
-
-            let issues = try await apiService.fetchAllIssues(
-                states: filterOptions.stateFilter.issueStates,
-                repositoryFullNames: nil, // Keep repository filtering client-side
-                visibility: visibility
-            )
+            // Fetch all issues regardless of state/visibility — filtering is done client-side
+            let issues = try await apiService.fetchAllIssues()
             self.allIssues = issues
-            self.isLoading = false
         } catch {
             self.errorMessage = error.localizedDescription
-            self.isLoading = false
+        }
+
+        isLoading = false
+        isRefreshing = false
+    }
+
+    // MARK: - Cache Mutations
+
+    /// Inserts or updates an issue in the local cache without a full reload.
+    /// If the issue already exists it is updated in place; otherwise it is inserted at the front.
+    func upsertIssueInCache(_ issue: Issue) {
+        if let index = allIssues.firstIndex(where: { $0.id == issue.id }) {
+            allIssues[index] = issue
+        } else {
+            allIssues.insert(issue, at: 0)
         }
     }
+
+    /// Removes an issue from the local cache without a full reload.
+    func removeIssueFromCache(id: String) {
+        allIssues.removeAll { $0.id == id }
+    }
+
+    /// Closes an issue via the API and immediately updates the local cache.
+    func closeIssue(_ issue: Issue) async {
+        do {
+            let updatedIssue = try await apiService.updateIssue(issueId: issue.id, title: nil, body: nil, state: .closed)
+            upsertIssueInCache(updatedIssue)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Reopens an issue via the API and immediately updates the local cache.
+    func reopenIssue(_ issue: Issue) async {
+        do {
+            let updatedIssue = try await apiService.updateIssue(issueId: issue.id, title: nil, body: nil, state: .open)
+            upsertIssueInCache(updatedIssue)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Deletes an issue via the API and immediately removes it from the local cache.
+    func deleteIssue(_ issue: Issue) async {
+        do {
+            try await apiService.deleteIssue(issueId: issue.id)
+            removeIssueFromCache(id: issue.id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Clones an issue via the API and immediately adds the copy to the local cache.
+    func cloneIssue(_ issue: Issue) async {
+        do {
+            let cloned = try await apiService.createIssue(
+                repositoryId: issue.repository.id,
+                title: issue.title + " copy",
+                body: issue.body,
+                labelIds: issue.labels.map { $0.id }
+            )
+            upsertIssueInCache(cloned)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Filters
 
     /// Applies filters and sorting to issues
     private static func applyFiltersAndSort(filterOptions: FilterOptions, to issues: [Issue], pinnedIDs: Set<String>, viewerLogin: String?) -> [Issue] {
@@ -124,24 +181,14 @@ class IssuesListViewModel: ObservableObject {
         return uniqueRepos.sorted { $0.fullName < $1.fullName }
     }
 
-    /// Updates the state filter
+    /// Updates the state filter (client-side; no API call needed)
     func setStateFilter(_ filter: IssueStateFilter) {
         filterOptions.stateFilter = filter
-
-        // Reload issues with new state filter
-        Task {
-            await loadIssues()
-        }
     }
 
-    /// Updates the visibility filter
+    /// Updates the visibility filter (client-side; no API call needed)
     func setVisibilityFilter(_ filter: VisibilityFilter) {
         filterOptions.visibilityFilter = filter
-
-        // Reload issues with new visibility filter (server-side)
-        Task {
-            await loadIssues()
-        }
     }
 
     /// Updates the involvement filter
