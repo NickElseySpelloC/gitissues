@@ -10,6 +10,7 @@ import SwiftUI
 struct FilterBarView: View {
     @ObservedObject var viewModel: IssuesListViewModel
     @State private var showRepositorySelector = false
+    @State private var showLabelSelector = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -125,6 +126,52 @@ struct FilterBarView: View {
                     }
                 }
 
+                // Label filter
+                if !viewModel.availableLabels.isEmpty {
+                    HStack(spacing: 8) {
+                        Text("Labels:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Button {
+                            showLabelSelector = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                if viewModel.filterOptions.selectedLabels.isEmpty {
+                                    Text("All (\(viewModel.availableLabels.count))")
+                                        .font(.caption)
+                                } else {
+                                    Text("\(viewModel.filterOptions.selectedLabels.count) selected")
+                                        .font(.caption)
+                                }
+                                Image(systemName: "chevron.down")
+                                    .font(.caption2)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.accentColor.opacity(0.1))
+                            .foregroundColor(.accentColor)
+                            .cornerRadius(6)
+                        }
+                        .buttonStyle(.plain)
+
+                        if !viewModel.filterOptions.selectedLabels.isEmpty {
+                            Button {
+                                viewModel.clearLabelFilter()
+                            } label: {
+                                Text("Clear")
+                                    .font(.caption2)
+                                    .foregroundColor(.red)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.red.opacity(0.1))
+                                    .cornerRadius(4)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
                 Spacer()
 
                 // Sort picker
@@ -170,6 +217,9 @@ struct FilterBarView: View {
         .background(Color(nsColor: .controlBackgroundColor))
         .sheet(isPresented: $showRepositorySelector) {
             RepositorySelectorSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showLabelSelector) {
+            LabelSelectorSheet(viewModel: viewModel)
         }
     }
 }

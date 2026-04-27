@@ -23,6 +23,7 @@ class IssuesListViewModel: ObservableObject {
     let pinningService: PinningService // Made public so detail view can access it
     private let appStateService = AppStateService()
     private var cancellables = Set<AnyCancellable>()
+    private var syncTask: Task<Void, Never>?
 
     init(accessToken: String) {
         self.apiService = GitHubAPIService(accessToken: accessToken)
@@ -80,6 +81,44 @@ class IssuesListViewModel: ObservableObject {
 
         isLoading = false
         isRefreshing = false
+    }
+
+    // MARK: - Background Sync
+
+    func startBackgroundSync() {
+        stopBackgroundSync()
+        syncTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                let enabled = AppStateService.isSyncEnabled
+                let interval = AppStateService.syncIntervalSeconds
+                guard enabled, interval > 0 else {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    continue
+                }
+                try? await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                await self.syncIssuesSilently()
+            }
+        }
+    }
+
+    func stopBackgroundSync() {
+        syncTask?.cancel()
+        syncTask = nil
+    }
+
+    private func syncIssuesSilently() async {
+        guard !isLoading, !isRefreshing else { return }
+        do {
+            if viewerLogin == nil {
+                viewerLogin = try await apiService.fetchViewerLogin()
+            }
+            let issues = try await apiService.fetchAllIssues()
+            self.allIssues = issues
+        } catch {
+            // Silent sync — don't surface transient errors
+        }
     }
 
     // MARK: - Cache Mutations
@@ -254,6 +293,41 @@ class IssuesListViewModel: ObservableObject {
     func clearRepositoryFilter() {
         var options = filterOptions
         options.selectedRepositories.removeAll()
+        filterOptions = options
+    }
+
+    /// Gets unique labels (by lowercased name) from currently displayed issues (excluding label filter)
+    var availableLabels: [Label] {
+        let issuesInScope = allIssues.filter { filterOptions.matchesExcludingLabels(issue: $0, viewerLogin: viewerLogin) }
+        var seen = Set<String>()
+        var labels: [Label] = []
+        for issue in issuesInScope {
+            for label in issue.labels {
+                let key = label.name.lowercased()
+                if seen.insert(key).inserted {
+                    labels.append(Label(id: key, name: key, color: label.color))
+                }
+            }
+        }
+        return labels.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Toggles label selection (by lowercased name)
+    func toggleLabel(_ labelName: String) {
+        var options = filterOptions
+        let key = labelName.lowercased()
+        if options.selectedLabels.contains(key) {
+            options.selectedLabels.remove(key)
+        } else {
+            options.selectedLabels.insert(key)
+        }
+        filterOptions = options
+    }
+
+    /// Clears all label filters
+    func clearLabelFilter() {
+        var options = filterOptions
+        options.selectedLabels.removeAll()
         filterOptions = options
     }
 }

@@ -201,7 +201,7 @@ class IssueFormViewModel: ObservableObject {
         isSubmitting = true
 
         do {
-            let issue: Issue
+            var issue: Issue
 
             switch mode {
             case .create:
@@ -266,6 +266,7 @@ class IssueFormViewModel: ObservableObject {
                 // Handle label changes
                 let labelsToAdd = selectedLabelIds.subtracting(originalLabelIds)
                 let labelsToRemove = originalLabelIds.subtracting(selectedLabelIds)
+                let labelsChanged = !labelsToAdd.isEmpty || !labelsToRemove.isEmpty
 
                 if !labelsToAdd.isEmpty {
                     try await apiService.addLabelsToIssue(
@@ -279,6 +280,17 @@ class IssueFormViewModel: ObservableObject {
                         issueId: issueId,
                         labelIds: Array(labelsToRemove)
                     )
+                }
+
+                // Re-fetch issue to get updated labels
+                if labelsChanged, let owner = repositoryOwner ?? existingIssue.repository.owner.login as String?,
+                   let name = repositoryName ?? existingIssue.repository.name as String? {
+                    let (refreshed, _) = try await apiService.fetchIssueDetail(
+                        owner: owner,
+                        repo: name,
+                        number: issue.number
+                    )
+                    issue = refreshed
                 }
             }
 

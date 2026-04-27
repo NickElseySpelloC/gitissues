@@ -309,6 +309,7 @@ struct ContentView: View {
                 let newViewModel = IssuesListViewModel(accessToken: accessToken)
                 viewModel.viewModel = newViewModel
                 await newViewModel.loadIssues()
+                newViewModel.startBackgroundSync()
             }
 
             // Subscribe to coordinator events

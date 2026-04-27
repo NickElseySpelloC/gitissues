@@ -13,7 +13,8 @@ struct MarkdownRenderView: View {
     let markdown: String
     let apiService: GitHubAPIService
 
-    @State private var renderedHTML: String?
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var rawHTML: String?
     @State private var isLoading = true
     @State private var error: String?
     @State private var contentHeight: CGFloat = 100
@@ -27,8 +28,8 @@ struct MarkdownRenderView: View {
                 Text("Failed to render markdown: \(error)")
                     .foregroundColor(.secondary)
                     .padding()
-            } else if let html = renderedHTML {
-                MarkdownWebView(html: html, contentHeight: $contentHeight)
+            } else if let html = rawHTML {
+                MarkdownWebView(html: wrapHTML(html, isDarkMode: colorScheme == .dark), contentHeight: $contentHeight)
                     .frame(height: contentHeight)
             }
         }
@@ -39,14 +40,13 @@ struct MarkdownRenderView: View {
 
     private func loadMarkdown() async {
         guard !markdown.isEmpty else {
-            renderedHTML = ""
+            rawHTML = ""
             isLoading = false
             return
         }
 
         do {
-            let html = try await apiService.renderMarkdown(markdown)
-            renderedHTML = wrapHTML(html)
+            rawHTML = try await apiService.renderMarkdown(markdown)
             isLoading = false
         } catch {
             self.error = error.localizedDescription
@@ -55,10 +55,11 @@ struct MarkdownRenderView: View {
     }
 
     /// Wraps the GitHub-rendered HTML with styling
-    private func wrapHTML(_ html: String) -> String {
+    private func wrapHTML(_ html: String, isDarkMode: Bool) -> String {
+        let darkClass = isDarkMode ? "dark" : ""
         return """
         <!DOCTYPE html>
-        <html>
+        <html class="\(darkClass)">
         <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <style>
@@ -70,38 +71,36 @@ struct MarkdownRenderView: View {
                     padding: 0;
                     margin: 0;
                 }
-                @media (prefers-color-scheme: dark) {
-                    body {
-                        color: #c9d1d9;
-                        background: #0d1117;
-                    }
-                    a { color: #58a6ff; }
-                    code, pre {
-                        background-color: rgba(110, 118, 129, 0.4);
-                        color: #c9d1d9;
-                    }
-                    pre {
-                        background-color: #161b22;
-                    }
-                    blockquote {
-                        border-left-color: #55606a;
-                        color: #a8b3bf;
-                    }
-                    h1, h2 { border-bottom-color: #21262d; }
-                    hr { background-color: #21262d; }
-                    table th, table td {
-                        border-color: #30363d !important;
-                    }
-                    table tr {
-                        background-color: #0d1117 !important;
-                        border-top-color: #30363d !important;
-                    }
-                    table th {
-                        background-color: #161b22 !important;
-                    }
-                    table tr:nth-child(2n) {
-                        background-color: #161b22 !important;
-                    }
+                html.dark body {
+                    color: #c9d1d9;
+                    background: #0d1117;
+                }
+                html.dark a { color: #58a6ff; }
+                html.dark code, html.dark pre {
+                    background-color: rgba(110, 118, 129, 0.4);
+                    color: #c9d1d9;
+                }
+                html.dark pre {
+                    background-color: #161b22;
+                }
+                html.dark blockquote {
+                    border-left-color: #55606a;
+                    color: #a8b3bf;
+                }
+                html.dark h1, html.dark h2 { border-bottom-color: #21262d; }
+                html.dark hr { background-color: #21262d; }
+                html.dark table th, html.dark table td {
+                    border-color: #30363d !important;
+                }
+                html.dark table tr {
+                    background-color: #0d1117 !important;
+                    border-top-color: #30363d !important;
+                }
+                html.dark table th {
+                    background-color: #161b22 !important;
+                }
+                html.dark table tr:nth-child(2n) {
+                    background-color: #161b22 !important;
                 }
                 h1, h2, h3, h4, h5, h6 {
                     margin-top: 24px;

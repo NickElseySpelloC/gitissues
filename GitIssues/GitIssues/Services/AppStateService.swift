@@ -17,11 +17,15 @@ struct AppState: Codable {
         var visibilityFilter: String // VisibilityFilter rawValue
         var involvementFilter: String // InvolvementFilter rawValue
         var selectedRepositories: [String] // Convert Set to Array for Codable
+        var selectedLabels: [String]? // Convert Set to Array for Codable
         var sortOption: String // SortOption id
     }
 }
 
 class AppStateService {
+    static let syncEnabledKey = "syncEnabled"
+    static let syncIntervalSecondsKey = "syncIntervalSeconds"
+
     private let defaults = UserDefaults.standard
     private let appStateKey = "appState"
 
@@ -63,9 +67,22 @@ class AppStateService {
             visibilityFilter: filterOptions.visibilityFilter.rawValue,
             involvementFilter: filterOptions.involvementFilter.rawValue,
             selectedRepositories: Array(filterOptions.selectedRepositories),
+            selectedLabels: Array(filterOptions.selectedLabels),
             sortOption: filterOptions.sortOption.id
         )
         saveState(state)
+    }
+
+    static var isSyncEnabled: Bool {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: syncEnabledKey) == nil { return true }
+        return defaults.bool(forKey: syncEnabledKey)
+    }
+
+    static var syncIntervalSeconds: Int {
+        let defaults = UserDefaults.standard
+        let value = defaults.integer(forKey: syncIntervalSecondsKey)
+        return value > 0 ? value : 30
     }
 
     /// Loads filter state and converts back to FilterOptions
@@ -99,6 +116,7 @@ class AppStateService {
             visibilityFilter: visibilityFilter,
             involvementFilter: involvementFilter,
             selectedRepositories: Set(filterState.selectedRepositories),
+            selectedLabels: Set(filterState.selectedLabels ?? []),
             sortOption: sortOption,
             searchText: "" // Don't persist search text
         )

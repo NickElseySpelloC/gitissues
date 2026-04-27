@@ -13,13 +13,24 @@ struct SettingsView: View {
 
     var body: some View {
         GeneralSettingsView(appearanceService: appearanceService, authManager: authManager)
-            .frame(width: 500, height: 400)
+            .frame(width: 500, height: 450)
     }
 }
 
 struct GeneralSettingsView: View {
     @ObservedObject var appearanceService: AppearanceService
     @ObservedObject var authManager: OAuth2Manager
+
+    @AppStorage(AppStateService.syncEnabledKey) private var syncEnabled = true
+    @AppStorage(AppStateService.syncIntervalSecondsKey) private var syncIntervalSeconds = 30
+
+    private static let intervalOptions = [10, 15, 30, 60, 120, 300]
+
+    private static func intervalLabel(_ seconds: Int) -> String {
+        if seconds < 60 { return "\(seconds) seconds" }
+        let minutes = seconds / 60
+        return minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
 
     var body: some View {
         Form {
@@ -37,6 +48,31 @@ struct GeneralSettingsView: View {
                     Text("Choose how GitIssues should appear")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+
+                Divider()
+
+                // Background Sync Section
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Background Sync")
+                        .font(.headline)
+
+                    Toggle("Automatically sync issues with GitHub", isOn: $syncEnabled)
+
+                    if syncEnabled {
+                        Picker("Sync every", selection: $syncIntervalSeconds) {
+                            ForEach(Self.intervalOptions, id: \.self) { interval in
+                                Text(Self.intervalLabel(interval)).tag(interval)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 250)
+                    }
+
+                    Text("When enabled, issues are refreshed in the background at the chosen interval.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Divider()
@@ -61,7 +97,6 @@ struct GeneralSettingsView: View {
 
                     if authManager.isAuthenticated && !authManager.allowPrivateRepoAccess {
                         Button("Reduce permissions (re-authenticate)") {
-                            // Re-auth with the minimal scope (public_repo user).
                             authManager.reauthorizeForScopeChange()
                         }
                         .padding(.top, 6)
@@ -71,9 +106,6 @@ struct GeneralSettingsView: View {
                             .foregroundColor(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-
-//                        .foregroundColor(.secondary)
-//                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding()

@@ -95,6 +95,7 @@ struct FilterOptions {
     var visibilityFilter: VisibilityFilter = .all
     var involvementFilter: InvolvementFilter = .all
     var selectedRepositories: Set<String> = []
+    var selectedLabels: Set<String> = []
     var sortOption: SortOption = .updatedDesc
     var searchText: String = ""
 
@@ -149,6 +150,14 @@ struct FilterOptions {
             }
         }
 
+        // Check label filter (OR logic, case-insensitive by name)
+        if !selectedLabels.isEmpty {
+            let issueLabels = Set(issue.labels.map { $0.name.lowercased() })
+            if issueLabels.isDisjoint(with: selectedLabels) {
+                return false
+            }
+        }
+
         // Check search text
         if !searchText.isEmpty {
             let searchLower = searchText.lowercased()
@@ -162,5 +171,11 @@ struct FilterOptions {
         }
 
         return true
+    }
+
+    func matchesExcludingLabels(issue: Issue, viewerLogin: String?) -> Bool {
+        var copy = self
+        copy.selectedLabels = []
+        return copy.matches(issue: issue, viewerLogin: viewerLogin)
     }
 }
