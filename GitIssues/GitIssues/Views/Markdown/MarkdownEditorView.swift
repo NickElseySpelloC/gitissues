@@ -230,6 +230,18 @@ struct MarkdownEditorView: NSViewRepresentable {
                     }
                 }
 
+                /* Restore list styles overridden by the * reset */
+                .editor-preview ul,
+                .editor-preview-side ul {
+                    list-style-type: disc !important;
+                    padding-left: 2em !important;
+                }
+                .editor-preview ol,
+                .editor-preview-side ol {
+                    list-style-type: decimal !important;
+                    padding-left: 2em !important;
+                }
+
                 #editor-container {
                     height: 100%;
                     display: flex;

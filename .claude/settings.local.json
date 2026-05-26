@@ -16,7 +16,20 @@
       "WebFetch(domain:swiftwithmajid.com)",
       "Bash(git stash:*)",
       "WebFetch(domain:objects.githubusercontent.com)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(ls /Users/nick/.claude/projects/ 2>/dev/null | head -30)",
+      "Bash(ls /Users/nick/dev/finance_tools/ 2>/dev/null || echo \"Directory not found\")",
+      "Bash(git -C /Users/nick/dev/finance_tools log --oneline -10)",
+      "Read(//Users/nick/dev/PortfolioPerformance/**)",
+      "Read(//Users/nick/dev/PortfolioPerformance/src/**)",
+      "Bash(find /Users/nick/dev/PowerController -name \"*.css\" -o -name \"*.html\" | head -20 2>/dev/null && find /Users/nick/dev/PowerController -name \"style*\" 2>/dev/null | head -10)",
+      "Bash(.venv/bin/python -c ' *)",
+      "Bash(kill 26061)",
+      "Bash(open /Users/nick/dev/finance_tools/logs/test_report.html)",
+      "Bash(.venv/bin/python -c \"import jinja2; print\\(jinja2.__version__\\)\")",
+      "Bash(.venv/bin/uv pip *)",
+      "Bash(uv sync *)",
+      "Bash(find /Users/nick/dev/sc-foundation -name \"*.py\" | xargs grep -l \"send_email\" 2>/dev/null)"
     ]
   }
 }

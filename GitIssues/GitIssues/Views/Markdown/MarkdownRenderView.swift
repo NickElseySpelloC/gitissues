@@ -147,7 +147,14 @@ struct MarkdownRenderView: View {
                     border-left: 0.25em solid #dfe2e5;
                     margin: 0 0 16px 0;
                 }
-                ul, ol {
+                ul {
+                    list-style-type: disc;
+                    padding-left: 2em;
+                    margin-top: 0;
+                    margin-bottom: 16px;
+                }
+                ol {
+                    list-style-type: decimal;
                     padding-left: 2em;
                     margin-top: 0;
                     margin-bottom: 16px;
