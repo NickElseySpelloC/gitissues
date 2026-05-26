@@ -23,6 +23,8 @@ class IssueFormViewModel: ObservableObject {
     @Published var availableLabels: [Label] = []
     @Published var selectedLabelIds: Set<String> = []
     @Published var isLoadingLabels = false
+    @Published var isCreatingLabel = false
+    @Published var createLabelError: String?
 
     // UI state
     @Published var isSubmitting = false
@@ -164,6 +166,29 @@ class IssueFormViewModel: ObservableObject {
         case .edit(let issue):
             return issue
         }
+    }
+
+    /// Creates a new label in the selected repository, adds it to availableLabels, and selects it
+    func createLabel(name: String, color: String) async {
+        guard let repositoryId = selectedRepositoryId else { return }
+
+        isCreatingLabel = true
+        createLabelError = nil
+
+        do {
+            let label = try await apiService.createLabel(
+                repositoryId: repositoryId,
+                name: name,
+                color: color
+            )
+            availableLabels.append(label)
+            availableLabels.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            selectedLabelIds.insert(label.id)
+        } catch {
+            createLabelError = error.localizedDescription
+        }
+
+        isCreatingLabel = false
     }
 
     /// Validates the form

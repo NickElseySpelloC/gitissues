@@ -420,6 +420,32 @@ class GitHubAPIService {
         return allLabels
     }
 
+    /// Creates a new label in a repository
+    /// - Parameters:
+    ///   - repositoryId: The node ID of the repository
+    ///   - name: Label name
+    ///   - color: 6-character hex color without leading #
+    /// - Returns: The created Label
+    func createLabel(repositoryId: String, name: String, color: String) async throws -> Label {
+        let variables: [String: Any] = [
+            "repositoryId": repositoryId,
+            "name": name,
+            "color": color
+        ]
+
+        let response: CreateLabelResponse = try await graphQLClient.execute(
+            query: GraphQLQueries.createLabelMutation,
+            variables: variables
+        )
+
+        guard let node = response.createLabel.label else {
+            throw NSError(domain: "GitHubAPIService", code: 0, userInfo: [
+                NSLocalizedDescriptionKey: "Label created but no data returned"
+            ])
+        }
+        return node.toLabel()
+    }
+
     /// Adds labels to an issue
     /// - Parameters:
     ///   - issueId: The ID of the issue

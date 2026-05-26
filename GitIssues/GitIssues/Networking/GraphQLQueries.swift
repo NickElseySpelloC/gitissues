@@ -342,6 +342,18 @@ struct GraphQLQueries {
     """
 
     /// Mutation to add labels to an issue
+    static let createLabelMutation = """
+    mutation CreateLabel($repositoryId: ID!, $name: String!, $color: String!) {
+      createLabel(input: {repositoryId: $repositoryId, name: $name, color: $color}) {
+        label {
+          id
+          name
+          color
+        }
+      }
+    }
+    """
+
     static let addLabelsToIssueMutation = """
     mutation AddLabels($issueId: ID!, $labelIds: [ID!]!) {
       addLabelsToLabelable(input: {labelableId: $issueId, labelIds: $labelIds}) {
@@ -1071,6 +1083,25 @@ struct RemoveLabelsResponse: Codable {
 
     struct RemoveLabelsPayload: Codable {
         let clientMutationId: String?
+    }
+}
+
+// Response structure for createLabel mutation
+struct CreateLabelResponse: Codable {
+    let createLabel: CreateLabelPayload
+
+    struct CreateLabelPayload: Codable {
+        let label: LabelNode?
+    }
+
+    struct LabelNode: Codable {
+        let id: String
+        let name: String
+        let color: String
+
+        func toLabel() -> Label {
+            return Label(id: id, name: name, color: color)
+        }
     }
 }
 
