@@ -15,7 +15,7 @@ struct ContentView: View {
     @StateObject private var viewModel: IssuesListViewModelWrapper
     @StateObject private var coordinator = WindowCoordinator.shared
     @State private var searchText = ""
-    @State private var selectedIssue: Issue?
+    @State private var selectedIssues: Set<Issue> = []
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var issueToDelete: Issue?
     @State private var issueToAssign: Issue?
@@ -23,6 +23,16 @@ struct ContentView: View {
     @State private var sidebarWidth: CGFloat?
     @State private var cancellables = Set<AnyCancellable>()
     @State private var scrollToIssueID: String?
+    // Batch operation state
+    @State private var batchOpIssues: Set<Issue> = []
+    @State private var showBatchDeleteConfirmation = false
+    @State private var showBatchCloseConfirmation = false
+    @State private var showBatchCloneConfirmation = false
+    @State private var showBatchAssignSheet = false
+
+    var singleSelectedIssue: Issue? {
+        selectedIssues.count == 1 ? selectedIssues.first : nil
+    }
 
     private let appStateService = AppStateService()
 
@@ -128,7 +138,7 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
                             ScrollViewReader { proxy in
-                            List(vm.filteredIssues, selection: $selectedIssue) { issue in
+                            List(vm.filteredIssues, selection: $selectedIssues) { issue in
                                 IssueRow(
                                     issue: issue,
                                     isPinned: vm.isPinned(issue.id),
@@ -138,71 +148,101 @@ struct ContentView: View {
                                 )
                                 .tag(issue)
                                 .contextMenu {
-                                    Button {
-                                        if let accessToken = authManager.getAccessToken() {
-                                            let issueData = IssueFormWindowData.IssueData(
-                                                issueId: issue.id,
-                                                title: issue.title,
-                                                body: issue.body,
-                                                state: issue.state.rawValue,
-                                                repositoryId: issue.repository.id,
-                                                repositoryOwner: issue.repository.owner.login,
-                                                repositoryName: issue.repository.name,
-                                                labelIds: issue.labels.map { $0.id }
-                                            )
-                                            let windowData = IssueFormWindowData(
-                                                mode: .edit,
-                                                accessToken: accessToken,
-                                                issueData: issueData
-                                            )
-                                            openWindow(id: WindowIdentifier.issueForm.rawValue, value: windowData)
-                                        }
-                                    } label: {
-                                        SwiftUI.Label("Edit Issue", systemImage: "pencil")
-                                    }
-
-                                    Button {
-                                        Task { await vm.cloneIssue(issue) }
-                                    } label: {
-                                        SwiftUI.Label("Clone Issue", systemImage: "doc.on.doc")
-                                    }
-
-                                    Button {
-                                        issueToAssign = issue
-                                    } label: {
-                                        SwiftUI.Label("Assign Issue", systemImage: "person.badge.plus")
-                                    }
-
-                                    Divider()
-
-                                    // Close/Reopen issue based on current state
-                                    if issue.state == .open {
+                                    let isBatchTarget = selectedIssues.contains(issue) && selectedIssues.count > 1
+                                    if isBatchTarget {
+                                        // Batch operations for multi-select
+                                        Text("\(selectedIssues.count) issues selected")
+                                            .foregroundColor(.secondary)
+                                        Divider()
                                         Button {
-                                            Task { await vm.closeIssue(issue) }
+                                            batchOpIssues = selectedIssues
+                                            showBatchCloneConfirmation = true
                                         } label: {
-                                            SwiftUI.Label("Close Issue", systemImage: "checkmark.circle")
+                                            SwiftUI.Label("Clone \(selectedIssues.count) Issues", systemImage: "doc.on.doc")
+                                        }
+                                        Button {
+                                            batchOpIssues = selectedIssues
+                                            showBatchAssignSheet = true
+                                        } label: {
+                                            SwiftUI.Label("Assign \(selectedIssues.count) Issues", systemImage: "person.badge.plus")
+                                        }
+                                        let openCount = selectedIssues.filter { $0.state == .open }.count
+                                        if openCount > 0 {
+                                            Button {
+                                                batchOpIssues = selectedIssues
+                                                showBatchCloseConfirmation = true
+                                            } label: {
+                                                SwiftUI.Label("Close \(openCount) Open Issue\(openCount == 1 ? "" : "s")", systemImage: "checkmark.circle")
+                                            }
+                                        }
+                                        Divider()
+                                        Button(role: .destructive) {
+                                            batchOpIssues = selectedIssues
+                                            showBatchDeleteConfirmation = true
+                                        } label: {
+                                            SwiftUI.Label("Delete \(selectedIssues.count) Issues", systemImage: "trash")
                                         }
                                     } else {
+                                        // Single-issue operations
                                         Button {
-                                            Task { await vm.reopenIssue(issue) }
+                                            if let accessToken = authManager.getAccessToken() {
+                                                let issueData = IssueFormWindowData.IssueData(
+                                                    issueId: issue.id,
+                                                    title: issue.title,
+                                                    body: issue.body,
+                                                    state: issue.state.rawValue,
+                                                    repositoryId: issue.repository.id,
+                                                    repositoryOwner: issue.repository.owner.login,
+                                                    repositoryName: issue.repository.name,
+                                                    labelIds: issue.labels.map { $0.id }
+                                                )
+                                                let windowData = IssueFormWindowData(
+                                                    mode: .edit,
+                                                    accessToken: accessToken,
+                                                    issueData: issueData
+                                                )
+                                                openWindow(id: WindowIdentifier.issueForm.rawValue, value: windowData)
+                                            }
                                         } label: {
-                                            SwiftUI.Label("Reopen Issue", systemImage: "arrow.counterclockwise.circle")
+                                            SwiftUI.Label("Edit Issue", systemImage: "pencil")
                                         }
-                                    }
-
-                                    Divider()
-
-                                    Button(role: .destructive) {
-                                        issueToDelete = issue
-                                        showDeleteConfirmation = true
-                                    } label: {
-                                        SwiftUI.Label("Delete Issue", systemImage: "trash")
+                                        Button {
+                                            Task { await vm.cloneIssue(issue) }
+                                        } label: {
+                                            SwiftUI.Label("Clone Issue", systemImage: "doc.on.doc")
+                                        }
+                                        Button {
+                                            issueToAssign = issue
+                                        } label: {
+                                            SwiftUI.Label("Assign Issue", systemImage: "person.badge.plus")
+                                        }
+                                        Divider()
+                                        if issue.state == .open {
+                                            Button {
+                                                Task { await vm.closeIssue(issue) }
+                                            } label: {
+                                                SwiftUI.Label("Close Issue", systemImage: "checkmark.circle")
+                                            }
+                                        } else {
+                                            Button {
+                                                Task { await vm.reopenIssue(issue) }
+                                            } label: {
+                                                SwiftUI.Label("Reopen Issue", systemImage: "arrow.counterclockwise.circle")
+                                            }
+                                        }
+                                        Divider()
+                                        Button(role: .destructive) {
+                                            issueToDelete = issue
+                                            showDeleteConfirmation = true
+                                        } label: {
+                                            SwiftUI.Label("Delete Issue", systemImage: "trash")
+                                        }
                                     }
                                 }
                             }
                             .listStyle(.sidebar)
                             .onKeyPress(.return) {
-                                if let selected = selectedIssue,
+                                if let selected = singleSelectedIssue,
                                    let accessToken = authManager.getAccessToken() {
                                     let issueData = IssueFormWindowData.IssueData(
                                         issueId: selected.id,
@@ -280,16 +320,39 @@ struct ContentView: View {
             })
         } detail: {
             // Detail view
-            if let selectedIssue = selectedIssue,
+            if selectedIssues.count > 1,
+               let vm = viewModel.viewModel {
+                MultiSelectDetailView(
+                    selectedIssues: selectedIssues,
+                    onBatchClone: {
+                        batchOpIssues = selectedIssues
+                        showBatchCloneConfirmation = true
+                    },
+                    onBatchAssign: {
+                        batchOpIssues = selectedIssues
+                        showBatchAssignSheet = true
+                    },
+                    onBatchClose: {
+                        batchOpIssues = selectedIssues
+                        showBatchCloseConfirmation = true
+                    },
+                    onBatchDelete: {
+                        batchOpIssues = selectedIssues
+                        showBatchDeleteConfirmation = true
+                    }
+                )
+                .onChange(of: vm.allIssues) { _, newIssues in
+                    let byId = Dictionary(uniqueKeysWithValues: newIssues.map { ($0.id, $0) })
+                    selectedIssues = Set(selectedIssues.compactMap { byId[$0.id] })
+                }
+            } else if let issue = singleSelectedIssue,
                let accessToken = authManager.getAccessToken(),
                let vm = viewModel.viewModel {
-                IssueDetailHost(issue: selectedIssue, accessToken: accessToken, listViewModel: vm)
-                    .id("\(selectedIssue.id)-\(selectedIssue.updatedAt.timeIntervalSince1970)") // Force view recreation when issue changes
+                IssueDetailHost(issue: issue, accessToken: accessToken, listViewModel: vm)
+                    .id("\(issue.id)-\(issue.updatedAt.timeIntervalSince1970)")
                     .onChange(of: vm.allIssues) { _, newIssues in
-                        // Update selected issue to the refreshed version after list changes
-                        if let currentId = self.selectedIssue?.id {
-                            self.selectedIssue = newIssues.first { $0.id == currentId }
-                        }
+                        let byId = Dictionary(uniqueKeysWithValues: newIssues.map { ($0.id, $0) })
+                        selectedIssues = Set(selectedIssues.compactMap { byId[$0.id] })
                     }
             } else {
                 VStack(spacing: 16) {
@@ -320,10 +383,10 @@ struct ContentView: View {
                     viewModel.viewModel?.upsertIssueInCache(issue)
                     if isNew {
                         // Select and scroll to newly created issues
-                        selectedIssue = issue
+                        selectedIssues = [issue]
                         scrollToIssueID = issue.id
-                    } else if selectedIssue?.id == issue.id {
-                        selectedIssue = issue
+                    } else if selectedIssues.first?.id == issue.id {
+                        selectedIssues = [issue]
                     }
                 }
                 .store(in: &cancellables)
@@ -349,9 +412,7 @@ struct ContentView: View {
                 if let issue = issueToDelete {
                     Task {
                         await viewModel.viewModel?.deleteIssue(issue)
-                        if selectedIssue?.id == issue.id {
-                            selectedIssue = nil
-                        }
+                        selectedIssues.remove(issue)
                         issueToDelete = nil
                     }
                 }
@@ -361,6 +422,54 @@ struct ContentView: View {
                 Text("Are you sure you want to delete \"\(issue.title)\"? This action cannot be undone.")
             }
         }
+        // Batch delete confirmation
+        .alert("Delete \(batchOpIssues.count) Issues", isPresented: $showBatchDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { batchOpIssues = [] }
+            Button("Delete All", role: .destructive) {
+                let issues = batchOpIssues
+                Task {
+                    for issue in issues {
+                        await viewModel.viewModel?.deleteIssue(issue)
+                    }
+                    selectedIssues.subtract(issues)
+                    batchOpIssues = []
+                }
+            }
+        } message: {
+            Text("Permanently delete \(batchOpIssues.count) issues? This cannot be undone.")
+        }
+        // Batch close confirmation
+        .alert("Close Issues", isPresented: $showBatchCloseConfirmation) {
+            Button("Cancel", role: .cancel) { batchOpIssues = [] }
+            Button("Close") {
+                let issues = batchOpIssues.filter { $0.state == .open }
+                Task {
+                    for issue in issues {
+                        await viewModel.viewModel?.closeIssue(issue)
+                    }
+                    batchOpIssues = []
+                }
+            }
+        } message: {
+            let openCount = batchOpIssues.filter { $0.state == .open }.count
+            Text("Close \(openCount) open issue\(openCount == 1 ? "" : "s")?")
+        }
+        // Batch clone confirmation
+        .alert("Clone \(batchOpIssues.count) Issues", isPresented: $showBatchCloneConfirmation) {
+            Button("Cancel", role: .cancel) { batchOpIssues = [] }
+            Button("Clone All") {
+                let issues = batchOpIssues
+                Task {
+                    for issue in issues {
+                        await viewModel.viewModel?.cloneIssue(issue)
+                    }
+                    batchOpIssues = []
+                }
+            }
+        } message: {
+            Text("Create \(batchOpIssues.count) cloned copies of the selected issues?")
+        }
+        // Single-issue assign sheet
         .sheet(item: $issueToAssign) { issue in
             if let accessToken = authManager.getAccessToken() {
                 AssignIssueSheet(
@@ -371,6 +480,30 @@ struct ContentView: View {
                         Task { await viewModel.viewModel?.assignIssue(issue, assignees: users) }
                     },
                     onCancel: { issueToAssign = nil }
+                )
+            }
+        }
+        // Batch assign sheet
+        .sheet(isPresented: $showBatchAssignSheet) {
+            if let firstIssue = batchOpIssues.first,
+               let accessToken = authManager.getAccessToken() {
+                let issues = batchOpIssues
+                AssignIssueSheet(
+                    issue: firstIssue,
+                    apiService: GitHubAPIService(accessToken: accessToken),
+                    onSave: { users in
+                        showBatchAssignSheet = false
+                        Task {
+                            for issue in issues {
+                                await viewModel.viewModel?.assignIssue(issue, assignees: users)
+                            }
+                            batchOpIssues = []
+                        }
+                    },
+                    onCancel: {
+                        showBatchAssignSheet = false
+                        batchOpIssues = []
+                    }
                 )
             }
         }
@@ -517,6 +650,93 @@ class IssuesListViewModelWrapper: ObservableObject {
     }
 
     private var cancellables = Set<AnyCancellable>()
+}
+
+struct MultiSelectDetailView: View {
+    let selectedIssues: Set<Issue>
+    let onBatchClone: () -> Void
+    let onBatchAssign: () -> Void
+    let onBatchClose: () -> Void
+    let onBatchDelete: () -> Void
+
+    private var openCount: Int { selectedIssues.filter { $0.state == .open }.count }
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "checklist")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+
+            Text("\(selectedIssues.count) Issues Selected")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            // Preview of selected issue titles
+            VStack(alignment: .leading, spacing: 6) {
+                let sorted = selectedIssues.sorted { $0.number < $1.number }
+                ForEach(sorted.prefix(5)) { issue in
+                    HStack(spacing: 8) {
+                        Image(systemName: issue.state == .open ? "circle" : "checkmark.circle.fill")
+                            .foregroundColor(issue.state == .open ? .green : .purple)
+                            .font(.caption)
+                        Text("#\(issue.number) \(issue.title)")
+                            .font(.caption)
+                            .lineLimit(1)
+                            .foregroundColor(.primary)
+                    }
+                }
+                if selectedIssues.count > 5 {
+                    Text("and \(selectedIssues.count - 5) more…")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: 320, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .cornerRadius(8)
+
+            // Batch action buttons
+            VStack(spacing: 10) {
+                Button {
+                    onBatchClone()
+                } label: {
+                    SwiftUI.Label("Clone \(selectedIssues.count) Issues", systemImage: "doc.on.doc")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    onBatchAssign()
+                } label: {
+                    SwiftUI.Label("Assign \(selectedIssues.count) Issues", systemImage: "person.badge.plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                if openCount > 0 {
+                    Button {
+                        onBatchClose()
+                    } label: {
+                        SwiftUI.Label("Close \(openCount) Open Issue\(openCount == 1 ? "" : "s")", systemImage: "checkmark.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Button(role: .destructive) {
+                    onBatchDelete()
+                } label: {
+                    SwiftUI.Label("Delete \(selectedIssues.count) Issues", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+            .frame(maxWidth: 280)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
 }
 
 #Preview {
