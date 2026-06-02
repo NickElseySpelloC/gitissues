@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>Filtering Issues – GitIssues Help</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="breadcrumb"><a href="index.html">GitIssues Help</a> › Filtering Issues</div>
+
+<h1>Filtering Issues</h1>
+
+<p>The filter bar sits below the search box and lets you narrow the issue list by multiple criteria at once. All filter settings are saved and restored when you relaunch the app.</p>
+
+<h2>State Filter</h2>
+<p>A segmented control with three options:</p>
+<table>
+    <tr><th>Option</th><th>Shows</th></tr>
+    <tr><td>All</td><td>Both open and closed issues</td></tr>
+    <tr><td>Open</td><td>Open issues only <em>(default)</em></td></tr>
+    <tr><td>Closed</td><td>Closed issues only</td></tr>
+</table>
+
+<h2>Visibility Filter</h2>
+<p>Filter by whether a repository is public or private:</p>
+<table>
+    <tr><th>Option</th><th>Shows</th></tr>
+    <tr><td>All</td><td>Issues from all repositories <em>(default)</em></td></tr>
+    <tr><td>Public</td><td>Only issues from public repositories</td></tr>
+    <tr><td>Private</td><td>Only issues from private repositories</td></tr>
+</table>
+<div class="note"><strong>Note</strong> Private repositories only appear if you have enabled private access in Settings and re-authenticated with GitHub.</div>
+
+<h2>Involvement Filter</h2>
+<p>Filter by your relationship to the issue:</p>
+<table>
+    <tr><th>Option</th><th>Shows</th></tr>
+    <tr><td>All</td><td>All issues regardless of your role <em>(default)</em></td></tr>
+    <tr><td>Created by me</td><td>Only issues you opened</td></tr>
+    <tr><td>Assigned to me</td><td>Only issues assigned to you</td></tr>
+    <tr><td>Other</td><td>Issues you neither created nor are assigned to</td></tr>
+</table>
+
+<h2>Repository Filter</h2>
+<p>This filter only appears if your account has two or more repositories. Click the <strong>Repos</strong> button to open a picker sheet and select or deselect individual repositories. The button label updates to show how many are selected (e.g. <em>3 selected</em>). Click <strong>Clear</strong> in the sheet to restore all repositories.</p>
+
+<h2>Label Filter</h2>
+<p>This filter only appears if any of your issues have labels. Click the <strong>Labels</strong> button to open a picker sheet where you can search for and select one or more labels.</p>
+<ul>
+    <li>The search field inside the sheet filters labels by name in real time.</li>
+    <li>Selecting multiple labels uses <strong>OR logic</strong> — an issue appears if it has <em>at least one</em> of the selected labels.</li>
+    <li>Click <strong>Clear</strong> to deselect all labels.</li>
+    <li>Each label is shown with its colour badge for easy identification.</li>
+</ul>
+
+<h2>Combining Filters</h2>
+<p>All active filters are applied together (AND logic between different filter types). For example, selecting <em>Open</em> state, <em>Assigned to me</em>, and a specific label shows only your open assigned issues that carry that label.</p>
+
+<div class="tip"><strong>Tip</strong> The issue count in the header (e.g. <em>Issues (12)</em>) always reflects the number of issues currently matching all active filters.</div>
+
+<div class="nav-footer">
+    <a href="issue-list.html">← The Issue List</a>
+    <a href="issue-detail.html">Viewing an Issue →</a>
+</div>
+
+</body>
+</html>

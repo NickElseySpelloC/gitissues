@@ -25,6 +25,10 @@ class IssuesListViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var syncTask: Task<Void, Never>?
 
+    // Track mutations that are ahead of any in-flight background sync
+    private var pendingDeletions: Set<String> = []
+    private var pendingInsertions: [Issue] = []
+
     init(accessToken: String) {
         self.apiService = GitHubAPIService(accessToken: accessToken)
         self.pinningService = PinningService()
@@ -74,7 +78,7 @@ class IssuesListViewModel: ObservableObject {
 
             // Fetch all issues regardless of state/visibility — filtering is done client-side
             let issues = try await apiService.fetchAllIssues()
-            self.allIssues = issues
+            applyIssuesFromSync(issues)
         } catch {
             self.errorMessage = error.localizedDescription
         }
@@ -115,10 +119,24 @@ class IssuesListViewModel: ObservableObject {
                 viewerLogin = try await apiService.fetchViewerLogin()
             }
             let issues = try await apiService.fetchAllIssues()
-            self.allIssues = issues
+            applyIssuesFromSync(issues)
         } catch {
             // Silent sync — don't surface transient errors
         }
+    }
+
+    /// Merges API-returned issues with any pending local mutations that may have raced ahead
+    /// of an in-flight sync: re-injects unconfirmed insertions and filters out pending deletions.
+    private func applyIssuesFromSync(_ issues: [Issue]) {
+        let incomingIDs = Set(issues.map { $0.id })
+
+        // Confirmed absent → deletion acknowledged, stop filtering
+        pendingDeletions = pendingDeletions.filter { incomingIDs.contains($0) }
+        // Confirmed present → insertion acknowledged, stop prepending
+        pendingInsertions = pendingInsertions.filter { !incomingIDs.contains($0.id) }
+
+        let filtered = issues.filter { !pendingDeletions.contains($0.id) }
+        allIssues = pendingInsertions + filtered
     }
 
     // MARK: - Cache Mutations
@@ -130,12 +148,15 @@ class IssuesListViewModel: ObservableObject {
             allIssues[index] = issue
         } else {
             allIssues.insert(issue, at: 0)
+            pendingInsertions.insert(issue, at: 0)
         }
     }
 
     /// Removes an issue from the local cache without a full reload.
     func removeIssueFromCache(id: String) {
         allIssues.removeAll { $0.id == id }
+        pendingInsertions.removeAll { $0.id == id }
+        pendingDeletions.insert(id)
     }
 
     /// Closes an issue via the API and immediately updates the local cache.

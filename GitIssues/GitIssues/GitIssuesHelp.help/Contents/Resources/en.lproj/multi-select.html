@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>Batch Operations – GitIssues Help</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="breadcrumb"><a href="index.html">GitIssues Help</a> › Batch Operations</div>
+
+<h1>Batch Operations</h1>
+
+<p>GitIssues lets you select multiple issues at once and perform actions on all of them in a single step.</p>
+
+<h2>Selecting Multiple Issues</h2>
+<table>
+    <tr><th>Action</th><th>Result</th></tr>
+    <tr><td><kbd>⌘</kbd> click</td><td>Add or remove an individual issue from the selection</td></tr>
+    <tr><td><kbd>⇧</kbd> click</td><td>Select a contiguous range of issues</td></tr>
+    <tr><td>Click elsewhere</td><td>Clears the selection</td></tr>
+</table>
+
+<p>When two or more issues are selected, the detail panel on the right switches to batch mode.</p>
+
+<h2>The Batch Panel</h2>
+<p>The batch panel shows:</p>
+<ul>
+    <li>The count of selected issues (e.g. <em>5 Issues Selected</em>)</li>
+    <li>A preview list of up to five issue titles with their state icons. If more than five are selected, a note shows how many additional issues are included.</li>
+    <li>Action buttons for the available batch operations</li>
+</ul>
+
+<h2>Available Batch Operations</h2>
+
+<h3>Clone Issues</h3>
+<p>Creates a copy of each selected issue. Each clone gets the original title with " copy" appended, the same body, and the same labels. Clones are created as new open issues in the same repository.</p>
+<p>A confirmation dialog shows the count before cloning begins.</p>
+
+<h3>Assign Issues</h3>
+<p>Opens the Assign sheet so you can choose assignees to apply to all selected issues at once. The chosen assignees replace the existing assignees on every selected issue.</p>
+
+<h3>Close Open Issues</h3>
+<p>Closes all open issues in the selection. Issues that are already closed are skipped. The button label shows exactly how many open issues will be affected (e.g. <em>Close 3 Open Issues</em>). This button does not appear if none of the selected issues are open.</p>
+<p>A confirmation dialog appears before any issues are closed.</p>
+
+<h3>Delete Issues</h3>
+<p>Permanently deletes all selected issues from GitHub. A confirmation dialog shows the count before deletion begins.</p>
+
+<div class="important"><strong>Important</strong> Batch deletion permanently removes all selected issues from GitHub. This cannot be undone.</div>
+
+<h2>Using the Context Menu for Batch Operations</h2>
+<p>You can also trigger batch operations from the context menu. With multiple issues selected, right-click on any <em>selected</em> issue to see the batch menu instead of the single-issue menu. Right-clicking on an <em>unselected</em> issue shows the standard single-issue menu for that issue only.</p>
+
+<div class="tip"><strong>Tip</strong> All batch operations show a confirmation dialog before doing anything, so you can review the count and cancel if needed.</div>
+
+<div class="nav-footer">
+    <a href="assignees.html">← Assignees</a>
+    <a href="settings.html">Settings →</a>
+</div>
+
+</body>
+</html>

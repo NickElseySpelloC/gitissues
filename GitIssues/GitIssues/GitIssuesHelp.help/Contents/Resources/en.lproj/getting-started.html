@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>Getting Started – GitIssues Help</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="breadcrumb"><a href="index.html">GitIssues Help</a> › Getting Started</div>
+
+<h1>Getting Started</h1>
+
+<h2>Signing In</h2>
+<p>GitIssues uses GitHub's secure OAuth device flow to authenticate. No password is stored by the app.</p>
+<ol class="steps">
+    <li>Launch GitIssues. The sign-in screen appears on first launch.</li>
+    <li>Click <strong>Sign In with GitHub</strong>. A one-time code is displayed and your browser opens to GitHub's device activation page.</li>
+    <li>Enter the code on the GitHub page and click <strong>Authorize</strong>.</li>
+    <li>Return to GitIssues. The app detects authorisation automatically and loads your issues.</li>
+</ol>
+
+<div class="tip"><strong>Tip</strong> Your access token is stored securely in the macOS Keychain. You only need to sign in once.</div>
+
+<h2>Private Repository Access</h2>
+<p>By default, GitIssues requests access to your public repositories only. To include private repositories, go to <strong>Settings</strong> and enable <em>Allow private repository access</em>. You will be asked to re-authenticate with GitHub to grant the broader permission.</p>
+
+<h2>The Main Window</h2>
+<p>The GitIssues window is divided into two panels:</p>
+<ul>
+    <li><strong>Left — Issue List:</strong> All your issues, with search, filters, and sort controls at the top. You can drag the divider to resize this panel; the width is remembered between sessions.</li>
+    <li><strong>Right — Detail Panel:</strong> Shows the full details of the selected issue, including its description, labels, assignees, and comments. When multiple issues are selected, this panel shows batch action controls instead.</li>
+</ul>
+
+<h2>Toolbar</h2>
+<p>The toolbar at the top right of the window contains three buttons:</p>
+<table>
+    <tr><th>Button</th><th>Action</th></tr>
+    <tr><td><strong>+ (New Issue)</strong></td><td>Opens the Create Issue window</td></tr>
+    <tr><td><strong>↺ (Refresh)</strong></td><td>Fetches the latest issues from GitHub. Shows a spinner while refreshing.</td></tr>
+    <tr><td><strong>Sign Out</strong></td><td>Signs you out and returns to the sign-in screen</td></tr>
+</table>
+
+<h2>Signing Out</h2>
+<p>Click <strong>Sign Out</strong> in the toolbar. Your issues and filter preferences are cleared. Your GitHub authorisation remains active; to fully revoke access, visit <em>github.com › Settings › Applications › Authorized OAuth Apps</em>.</p>
+
+<div class="nav-footer">
+    <a href="index.html">← Help Home</a>
+    <a href="issue-list.html">The Issue List →</a>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>The Issue List – GitIssues Help</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="breadcrumb"><a href="index.html">GitIssues Help</a> › The Issue List</div>
+
+<h1>The Issue List</h1>
+
+<h2>What Each Row Shows</h2>
+<p>Each issue in the list displays:</p>
+<ul>
+    <li><strong>Pin icon</strong> — hollow when unpinned, filled when pinned. Click to toggle.</li>
+    <li><strong>State icon</strong> — green circle for open issues, purple filled checkmark for closed.</li>
+    <li><strong>Title</strong> — up to two lines. The full title is visible in the detail panel.</li>
+    <li><strong>Issue number</strong> — shown as #123 in the top-right of the row.</li>
+    <li><strong>Repository</strong> — displayed as <em>owner/repo</em>.</li>
+    <li><strong>Last updated</strong> — shown as a relative time, e.g. "3 hours ago".</li>
+    <li><strong>Labels</strong> — colour-coded badges below the repository line. Scroll horizontally if there are many.</li>
+</ul>
+
+<h2>Searching</h2>
+<p>The search bar at the top of the list filters issues in real time as you type. Search is case-insensitive and matches against:</p>
+<ul>
+    <li>Issue title</li>
+    <li>Issue body / description</li>
+    <li>Repository name</li>
+</ul>
+<p>Click the <strong>✕</strong> button to clear the search. Your last search query is restored when you relaunch the app.</p>
+
+<h2>Sorting</h2>
+<p>Use the <strong>Sort</strong> menu in the filter bar to change the order of the list. The available options are:</p>
+<table>
+    <tr><th>Option</th><th>Description</th></tr>
+    <tr><td>Updated (Newest)</td><td>Most recently updated first <em>(default)</em></td></tr>
+    <tr><td>Updated (Oldest)</td><td>Least recently updated first</td></tr>
+    <tr><td>Created (Newest)</td><td>Most recently created first</td></tr>
+    <tr><td>Created (Oldest)</td><td>Oldest issues first</td></tr>
+    <tr><td>Issue # (High to Low)</td><td>Highest issue numbers first</td></tr>
+    <tr><td>Issue # (Low to High)</td><td>Lowest issue numbers first</td></tr>
+</table>
+
+<div class="note"><strong>Note</strong> Pinned issues always appear at the top of the list, regardless of the sort order.</div>
+
+<h2>Pinning Issues</h2>
+<p>Pinning keeps important issues at the top of your list so they are always easy to find.</p>
+<ul>
+    <li>Click the <strong>pin icon</strong> on any issue row to pin it. The icon turns solid.</li>
+    <li>Click again to unpin.</li>
+    <li>Pinned issues are sorted among themselves using the current sort order.</li>
+    <li>Pin state is saved locally and restored between sessions.</li>
+</ul>
+
+<div class="tip"><strong>Tip</strong> You can pin issues from any repository. There is no limit on the number of pinned issues.</div>
+
+<h2>Selecting Issues</h2>
+<ul>
+    <li><strong>Single click</strong> — selects one issue and shows its details in the right panel.</li>
+    <li><strong>⌘ click</strong> — adds or removes an issue from the selection without deselecting others.</li>
+    <li><strong>Shift click</strong> — selects a range of issues.</li>
+    <li><strong>Return</strong> — when a single issue is selected, opens it for editing.</li>
+</ul>
+<p>When more than one issue is selected, the detail panel switches to batch operation mode. See <a href="multi-select.html">Batch Operations</a> for details.</p>
+
+<h2>The Context Menu</h2>
+<p>Right-click any issue to reveal a context menu. The available actions depend on whether you have one or multiple issues selected:</p>
+<ul>
+    <li><strong>Single issue:</strong> Edit, Clone, Assign, Close/Reopen, Delete.</li>
+    <li><strong>Multiple issues (right-click a selected item):</strong> Clone all, Assign all, Close open ones, Delete all.</li>
+</ul>
+
+<h2>Refreshing</h2>
+<p>Issues are kept up to date automatically if background sync is enabled in Settings. You can also click the <strong>↺</strong> toolbar button at any time to fetch the latest data from GitHub. The list remains visible while the refresh happens in the background.</p>
+
+<div class="nav-footer">
+    <a href="getting-started.html">← Getting Started</a>
+    <a href="filtering.html">Filtering Issues →</a>
+</div>
+
+</body>
+</html>

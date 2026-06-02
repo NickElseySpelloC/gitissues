@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>Settings – GitIssues Help</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="breadcrumb"><a href="index.html">GitIssues Help</a> › Settings</div>
+
+<h1>Settings</h1>
+
+<p>Open Settings from the <strong>GitIssues menu › Settings…</strong> or press <kbd>⌘</kbd><kbd>,</kbd>.</p>
+
+<h2>Appearance</h2>
+<p>Choose the display mode for the app:</p>
+<table>
+    <tr><th>Option</th><th>Description</th></tr>
+    <tr><td><strong>System</strong></td><td>Follows your macOS appearance setting automatically <em>(default)</em></td></tr>
+    <tr><td><strong>Light</strong></td><td>Always use the light appearance</td></tr>
+    <tr><td><strong>Dark</strong></td><td>Always use the dark appearance</td></tr>
+</table>
+
+<h2>Background Sync</h2>
+<p>GitIssues can automatically refresh your issues in the background so the list stays up to date without you having to click Refresh.</p>
+
+<h3>Enable/Disable</h3>
+<p>Use the toggle (<em>Automatically sync issues with GitHub</em>) to turn background sync on or off. It is enabled by default.</p>
+
+<h3>Sync Interval</h3>
+<p>When background sync is on, use the interval picker to choose how often issues are fetched:</p>
+<table>
+    <tr><th>Option</th><th>Interval</th></tr>
+    <tr><td>10s</td><td>Every 10 seconds</td></tr>
+    <tr><td>15s</td><td>Every 15 seconds</td></tr>
+    <tr><td>30s</td><td>Every 30 seconds <em>(default)</em></td></tr>
+    <tr><td>60s</td><td>Every minute</td></tr>
+    <tr><td>2 min</td><td>Every 2 minutes</td></tr>
+    <tr><td>5 min</td><td>Every 5 minutes</td></tr>
+</table>
+
+<div class="tip"><strong>Tip</strong> A shorter interval keeps your list more current but uses more network traffic and GitHub API quota. The 30-second default is a good balance for most workflows.</div>
+
+<h2>GitHub Access</h2>
+
+<h3>Private Repository Access</h3>
+<p>The <em>Allow private repository access</em> toggle controls whether GitIssues requests permission to see your private repositories.</p>
+<ul>
+    <li><strong>Off (default):</strong> Only public repositories and their issues are shown.</li>
+    <li><strong>On:</strong> Public and private repositories are shown. Enabling this requires re-authenticating with GitHub to grant the additional permission.</li>
+</ul>
+
+<h3>Reducing Permissions</h3>
+<p>If you previously enabled private access and want to revert to public-only, turn the toggle off. A <strong>Reduce permissions (re-authenticate)</strong> button appears — click it to go through the sign-in flow again with the narrower scope. Your locally stored issues and preferences are not affected.</p>
+
+<div class="note"><strong>Note</strong> Revoking app access entirely can be done from your GitHub account at <em>github.com › Settings › Applications › Authorized OAuth Apps</em>.</div>
+
+<div class="nav-footer">
+    <a href="multi-select.html">← Batch Operations</a>
+    <a href="keyboard-shortcuts.html">Keyboard Shortcuts →</a>
+</div>
+
+</body>
+</html>

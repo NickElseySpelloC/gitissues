@@ -303,7 +303,7 @@ struct ContentView: View {
                     } label: {
                         if viewModel.viewModel?.isRefreshing == true {
                             ProgressView()
-                                .scaleEffect(0.7)
+                                .controlSize(.small)
                         } else {
                             Image(systemName: "arrow.clockwise")
                         }
@@ -342,7 +342,7 @@ struct ContentView: View {
                     }
                 )
                 .onChange(of: vm.allIssues) { _, newIssues in
-                    let byId = Dictionary(uniqueKeysWithValues: newIssues.map { ($0.id, $0) })
+                    let byId = Dictionary(newIssues.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
                     selectedIssues = Set(selectedIssues.compactMap { byId[$0.id] })
                 }
             } else if let issue = singleSelectedIssue,
@@ -351,7 +351,7 @@ struct ContentView: View {
                 IssueDetailHost(issue: issue, accessToken: accessToken, listViewModel: vm)
                     .id("\(issue.id)-\(issue.updatedAt.timeIntervalSince1970)")
                     .onChange(of: vm.allIssues) { _, newIssues in
-                        let byId = Dictionary(uniqueKeysWithValues: newIssues.map { ($0.id, $0) })
+                        let byId = Dictionary(newIssues.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
                         selectedIssues = Set(selectedIssues.compactMap { byId[$0.id] })
                     }
             } else {

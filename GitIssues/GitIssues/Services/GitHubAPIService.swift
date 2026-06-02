@@ -106,6 +106,7 @@ class GitHubAPIService {
         visibility: String? = nil
     ) async throws -> [Issue] {
         var allIssues: [Issue] = []
+        var seenIDs = Set<String>()
         var cursor: String? = nil
         var hasNextPage = true
 
@@ -117,7 +118,12 @@ class GitHubAPIService {
                 cursor: cursor
             )
 
-            allIssues.append(contentsOf: issues)
+            // Deduplicate: GitHub search results can shift between pages (e.g. when cloning
+            // changes updatedAt timestamps mid-pagination), causing the same issue to appear
+            // on multiple pages.
+            for issue in issues where seenIDs.insert(issue.id).inserted {
+                allIssues.append(issue)
+            }
             hasNextPage = nextPage
             cursor = nextCursor
         }
