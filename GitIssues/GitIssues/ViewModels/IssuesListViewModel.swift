@@ -231,6 +231,55 @@ class IssuesListViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Cross-Repository Transfer
+
+    /// Fetches all repositories the user can transfer issues into.
+    /// Falls back to the repositories already represented in the issues list on failure.
+    func fetchSelectableRepositories() async -> [Repository] {
+        do {
+            return try await apiService.fetchAllRepositories()
+        } catch {
+            errorMessage = error.localizedDescription
+            return availableRepositories
+        }
+    }
+
+    /// Copies the given issues into the destination repository, updating the cache for each success.
+    func copyIssues(_ issues: [Issue], to destination: Repository, progress: ((Int, Int) -> Void)? = nil) async -> TransferResult {
+        var succeeded = 0
+        var failures: [(issue: Issue, message: String)] = []
+        for (index, issue) in issues.enumerated() {
+            do {
+                let newIssue = try await apiService.copyIssue(issue, to: destination)
+                upsertIssueInCache(newIssue)
+                succeeded += 1
+            } catch {
+                failures.append((issue, error.localizedDescription))
+            }
+            progress?(index + 1, issues.count)
+        }
+        return TransferResult(succeeded: succeeded, failures: failures)
+    }
+
+    /// Moves the given issues into the destination repository (preserving timestamps), updating
+    /// the cache for each success: the new issue is inserted and the original removed.
+    func moveIssues(_ issues: [Issue], to destination: Repository, progress: ((Int, Int) -> Void)? = nil) async -> TransferResult {
+        var succeeded = 0
+        var failures: [(issue: Issue, message: String)] = []
+        for (index, issue) in issues.enumerated() {
+            do {
+                let newIssue = try await apiService.moveIssue(issue, to: destination)
+                removeIssueFromCache(id: issue.id)
+                upsertIssueInCache(newIssue)
+                succeeded += 1
+            } catch {
+                failures.append((issue, error.localizedDescription))
+            }
+            progress?(index + 1, issues.count)
+        }
+        return TransferResult(succeeded: succeeded, failures: failures)
+    }
+
     // MARK: - Filters
 
     /// Applies filters and sorting to issues
@@ -351,4 +400,12 @@ class IssuesListViewModel: ObservableObject {
         options.selectedLabels.removeAll()
         filterOptions = options
     }
+}
+
+/// Summary of a copy/move operation across one or more issues.
+struct TransferResult {
+    let succeeded: Int
+    let failures: [(issue: Issue, message: String)]
+
+    var total: Int { succeeded + failures.count }
 }

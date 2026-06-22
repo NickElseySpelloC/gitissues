@@ -554,6 +554,203 @@ class GitHubAPIService {
         }
     }
 
+    // MARK: - Cross-Repository Transfer
+
+    /// Finds or creates labels in the destination repository matching the given source labels by name.
+    /// Existing labels are matched case-insensitively; missing labels are created with the source color.
+    /// - Returns: The destination repository's labels corresponding to each source label.
+    private func resolveLabels(in destination: Repository, matching sourceLabels: [Label]) async throws -> [Label] {
+        guard !sourceLabels.isEmpty else { return [] }
+
+        let existing = try await fetchAllRepositoryLabels(owner: destination.owner.login, repo: destination.name)
+        var byName = Dictionary(existing.map { ($0.name.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
+
+        var resolved: [Label] = []
+        for source in sourceLabels {
+            let key = source.name.lowercased()
+            if let match = byName[key] {
+                resolved.append(match)
+            } else {
+                let created = try await createLabel(repositoryId: destination.id, name: source.name, color: source.color)
+                byName[key] = created
+                resolved.append(created)
+            }
+        }
+        return resolved
+    }
+
+    /// Copies an issue into the destination repository, transferring the title, description,
+    /// labels and all comments. The copy is created fresh, so its creation timestamps and author
+    /// reflect the current user and time (use `moveIssue` to preserve the original timestamps).
+    /// - Returns: The newly created issue in the destination repository.
+    func copyIssue(_ issue: Issue, to destination: Repository) async throws -> Issue {
+        let (_, comments) = try await fetchIssueDetail(
+            owner: issue.repository.owner.login,
+            repo: issue.repository.name,
+            number: issue.number
+        )
+
+        let labels = try await resolveLabels(in: destination, matching: issue.labels)
+
+        var newIssue = try await createIssue(
+            repositoryId: destination.id,
+            title: issue.title,
+            body: issue.body,
+            labelIds: labels.map { $0.id }
+        )
+
+        for comment in comments where !comment.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            _ = try await addComment(issueId: newIssue.id, body: comment.body)
+        }
+
+        // Preserve the original open/closed state.
+        if issue.state == .closed {
+            newIssue = try await updateIssue(issueId: newIssue.id, title: nil, body: nil, state: .closed)
+        }
+
+        return newIssue
+    }
+
+    /// Moves an issue into the destination repository, transferring the title, description, labels
+    /// and all comments while preserving the creation timestamps of the issue and each comment via
+    /// GitHub's issue import API. The original issue is deleted once the import succeeds.
+    /// - Returns: The newly created issue in the destination repository.
+    func moveIssue(_ issue: Issue, to destination: Repository) async throws -> Issue {
+        let (_, comments) = try await fetchIssueDetail(
+            owner: issue.repository.owner.login,
+            repo: issue.repository.name,
+            number: issue.number
+        )
+
+        // Labels are imported by name, so make sure they exist in the destination first.
+        let labels = try await resolveLabels(in: destination, matching: issue.labels)
+
+        let number = try await importIssue(
+            destination: destination,
+            issue: issue,
+            comments: comments,
+            labelNames: labels.map { $0.name }
+        )
+
+        let (newIssue, _) = try await fetchIssueDetail(
+            owner: destination.owner.login,
+            repo: destination.name,
+            number: number
+        )
+
+        // Only remove the original after the new issue is confirmed present.
+        try await deleteIssue(issueId: issue.id)
+
+        return newIssue
+    }
+
+    /// Imports an issue (with preserved timestamps) into the destination repository using GitHub's
+    /// asynchronous issue import API, polling until the import completes.
+    /// - Returns: The number of the newly imported issue.
+    private func importIssue(
+        destination: Repository,
+        issue: Issue,
+        comments: [Comment],
+        labelNames: [String]
+    ) async throws -> Int {
+        guard let url = URL(string: "https://api.github.com/repos/\(destination.owner.login)/\(destination.name)/import/issues") else {
+            throw GraphQLError.invalidURL
+        }
+
+        let formatter = ISO8601DateFormatter()
+
+        var issueDict: [String: Any] = [
+            "title": issue.title,
+            "body": issue.body ?? "",
+            "created_at": formatter.string(from: issue.createdAt),
+            "closed": issue.state == .closed
+        ]
+        if !labelNames.isEmpty {
+            issueDict["labels"] = labelNames
+        }
+
+        var payload: [String: Any] = ["issue": issueDict]
+        if !comments.isEmpty {
+            payload["comments"] = comments.map { comment in
+                [
+                    "created_at": formatter.string(from: comment.createdAt),
+                    "body": comment.body
+                ]
+            }
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let data = try await performRESTRequest(url: url, method: "POST", body: bodyData)
+
+        let decoder = JSONDecoder()
+        let initial = try decoder.decode(IssueImportResponse.self, from: data)
+
+        guard let statusURLString = initial.url, let statusURL = URL(string: statusURLString) else {
+            throw GraphQLError.serverError("Issue import did not return a status URL")
+        }
+
+        // Poll the import status until it resolves. Imports are usually quick but can be queued,
+        // so allow up to ~90s (2s between polls) before giving up.
+        var lastStatus = initial.status ?? "pending"
+        for _ in 0..<45 {
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+
+            let statusData = try await performRESTRequest(url: statusURL, method: "GET", body: nil)
+            let status = try decoder.decode(IssueImportResponse.self, from: statusData)
+            lastStatus = status.status ?? "nil"
+
+            switch status.status {
+            case "imported":
+                guard let issueURL = status.issueUrl,
+                      let last = issueURL.split(separator: "/").last,
+                      let number = Int(last) else {
+                    throw GraphQLError.serverError("Could not determine the imported issue number")
+                }
+                return number
+            case "failed":
+                let detail = status.errors?.compactMap { $0.code }.joined(separator: ", ")
+                throw GraphQLError.serverError("Issue import failed\(detail.map { ": \($0)" } ?? "")")
+            default:
+                // "pending" / "importing" — keep polling.
+                continue
+            }
+        }
+
+        throw GraphQLError.serverError("Issue import timed out (last status: \(lastStatus))")
+    }
+
+    /// Performs a REST request against the GitHub API using the issue-import preview media type.
+    private func performRESTRequest(url: URL, method: String, body: Data?) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/vnd.github.golden-comet-preview+json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        if let body = body {
+            request.httpBody = body
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        if let http = response as? HTTPURLResponse {
+            if http.statusCode == 401 {
+                throw GraphQLError.unauthorized
+            }
+            if http.statusCode == 403, http.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0" {
+                let resetStr = http.value(forHTTPHeaderField: "X-RateLimit-Reset")
+                let resetDate = resetStr.flatMap { TimeInterval($0) }.map { Date(timeIntervalSince1970: $0) }
+                throw GraphQLError.rateLimited(reset: resetDate)
+            }
+            guard (200...299).contains(http.statusCode) else {
+                let message = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
+                throw GraphQLError.serverError("HTTP \(http.statusCode): \(message)")
+            }
+        }
+
+        return data
+    }
+
     /// Renders markdown text to HTML using GitHub's rendering API
     /// - Parameter markdown: The markdown text to render
     /// - Returns: Rendered HTML string
@@ -596,5 +793,27 @@ class GitHubAPIService {
         }
 
         return html
+    }
+}
+
+/// Response shape for GitHub's issue import API (both the initial POST and the status polling GET).
+private struct IssueImportResponse: Codable {
+    let url: String?
+    let status: String?
+    let issueUrl: String?
+    let errors: [ImportError]?
+
+    enum CodingKeys: String, CodingKey {
+        case url
+        case status
+        case issueUrl = "issue_url"
+        case errors
+    }
+
+    struct ImportError: Codable {
+        let code: String?
+        let field: String?
+        let resource: String?
+        let location: String?
     }
 }

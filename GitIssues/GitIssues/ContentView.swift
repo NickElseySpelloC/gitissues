@@ -29,6 +29,8 @@ struct ContentView: View {
     @State private var showBatchCloseConfirmation = false
     @State private var showBatchCloneConfirmation = false
     @State private var showBatchAssignSheet = false
+    // Copy/move to another repository
+    @State private var transferRequest: TransferRequest?
 
     var singleSelectedIssue: Issue? {
         selectedIssues.count == 1 ? selectedIssues.first : nil
@@ -166,6 +168,16 @@ struct ContentView: View {
                                         } label: {
                                             SwiftUI.Label("Assign \(selectedIssues.count) Issues", systemImage: "person.badge.plus")
                                         }
+                                        Button {
+                                            transferRequest = TransferRequest(mode: .copy, issues: Array(selectedIssues))
+                                        } label: {
+                                            SwiftUI.Label("Copy \(selectedIssues.count) Issues to Repository…", systemImage: "doc.on.doc")
+                                        }
+                                        Button {
+                                            transferRequest = TransferRequest(mode: .move, issues: Array(selectedIssues))
+                                        } label: {
+                                            SwiftUI.Label("Move \(selectedIssues.count) Issues to Repository…", systemImage: "arrow.right.square")
+                                        }
                                         let openCount = selectedIssues.filter { $0.state == .open }.count
                                         if openCount > 0 {
                                             Button {
@@ -215,6 +227,16 @@ struct ContentView: View {
                                             issueToAssign = issue
                                         } label: {
                                             SwiftUI.Label("Assign Issue", systemImage: "person.badge.plus")
+                                        }
+                                        Button {
+                                            transferRequest = TransferRequest(mode: .copy, issues: [issue])
+                                        } label: {
+                                            SwiftUI.Label("Copy to Repository…", systemImage: "doc.on.doc")
+                                        }
+                                        Button {
+                                            transferRequest = TransferRequest(mode: .move, issues: [issue])
+                                        } label: {
+                                            SwiftUI.Label("Move to Repository…", systemImage: "arrow.right.square")
                                         }
                                         Divider()
                                         if issue.state == .open {
@@ -331,6 +353,12 @@ struct ContentView: View {
                     onBatchAssign: {
                         batchOpIssues = selectedIssues
                         showBatchAssignSheet = true
+                    },
+                    onBatchCopy: {
+                        transferRequest = TransferRequest(mode: .copy, issues: Array(selectedIssues))
+                    },
+                    onBatchMove: {
+                        transferRequest = TransferRequest(mode: .move, issues: Array(selectedIssues))
                     },
                     onBatchClose: {
                         batchOpIssues = selectedIssues
@@ -507,7 +535,28 @@ struct ContentView: View {
                 )
             }
         }
+        // Copy / move to another repository
+        .sheet(item: $transferRequest) { request in
+            if let vm = viewModel.viewModel {
+                TransferIssuesSheet(
+                    mode: request.mode,
+                    issues: request.issues,
+                    viewModel: vm,
+                    onComplete: {
+                        transferRequest = nil
+                        batchOpIssues = []
+                    }
+                )
+            }
+        }
     }
+}
+
+/// Identifiable request describing a pending copy/move-to-repository action.
+struct TransferRequest: Identifiable {
+    let id = UUID()
+    let mode: IssueTransferMode
+    let issues: [Issue]
 }
 
 struct IssueDetailHost: View {
@@ -656,6 +705,8 @@ struct MultiSelectDetailView: View {
     let selectedIssues: Set<Issue>
     let onBatchClone: () -> Void
     let onBatchAssign: () -> Void
+    let onBatchCopy: () -> Void
+    let onBatchMove: () -> Void
     let onBatchClose: () -> Void
     let onBatchDelete: () -> Void
 
@@ -710,6 +761,22 @@ struct MultiSelectDetailView: View {
                     onBatchAssign()
                 } label: {
                     SwiftUI.Label("Assign \(selectedIssues.count) Issues", systemImage: "person.badge.plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    onBatchCopy()
+                } label: {
+                    SwiftUI.Label("Copy \(selectedIssues.count) Issues to Repository…", systemImage: "doc.on.doc")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    onBatchMove()
+                } label: {
+                    SwiftUI.Label("Move \(selectedIssues.count) Issues to Repository…", systemImage: "arrow.right.square")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
