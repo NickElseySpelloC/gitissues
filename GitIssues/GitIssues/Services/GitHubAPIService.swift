@@ -684,6 +684,7 @@ class GitHubAPIService {
 
         let decoder = JSONDecoder()
         let initial = try decoder.decode(IssueImportResponse.self, from: data)
+        AppLogger.shared.debug("Issue import started for \(destination.fullName) (initial status: \(initial.status ?? "nil"))")
 
         guard let statusURLString = initial.url, let statusURL = URL(string: statusURLString) else {
             throw GraphQLError.serverError("Issue import did not return a status URL")
@@ -692,12 +693,13 @@ class GitHubAPIService {
         // Poll the import status until it resolves. Imports are usually quick but can be queued,
         // so allow up to ~90s (2s between polls) before giving up.
         var lastStatus = initial.status ?? "pending"
-        for _ in 0..<45 {
+        for attempt in 0..<45 {
             try await Task.sleep(nanoseconds: 2_000_000_000)
 
             let statusData = try await performRESTRequest(url: statusURL, method: "GET", body: nil)
             let status = try decoder.decode(IssueImportResponse.self, from: statusData)
             lastStatus = status.status ?? "nil"
+            AppLogger.shared.debug("Issue import poll #\(attempt + 1): status=\(lastStatus)")
 
             switch status.status {
             case "imported":
@@ -709,6 +711,7 @@ class GitHubAPIService {
                 return number
             case "failed":
                 let detail = status.errors?.compactMap { $0.code }.joined(separator: ", ")
+                AppLogger.shared.error("Issue import failed for \(destination.fullName): \(detail ?? "unknown error")")
                 throw GraphQLError.serverError("Issue import failed\(detail.map { ": \($0)" } ?? "")")
             default:
                 // "pending" / "importing" — keep polling.
@@ -716,6 +719,7 @@ class GitHubAPIService {
             }
         }
 
+        AppLogger.shared.error("Issue import timed out for \(destination.fullName) (last status: \(lastStatus))")
         throw GraphQLError.serverError("Issue import timed out (last status: \(lastStatus))")
     }
 

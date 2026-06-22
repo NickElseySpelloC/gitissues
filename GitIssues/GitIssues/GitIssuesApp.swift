@@ -14,6 +14,10 @@ struct GitIssuesApp: App {
     init() {
         // Initialize appearance service to apply saved theme
         _ = AppearanceService.shared
+
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        AppLogger.shared.info("GitIssues launched (version \(version), build \(build))")
     }
 
     var body: some Scene {

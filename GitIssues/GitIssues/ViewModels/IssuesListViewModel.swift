@@ -79,7 +79,9 @@ class IssuesListViewModel: ObservableObject {
             // Fetch all issues regardless of state/visibility — filtering is done client-side
             let issues = try await apiService.fetchAllIssues()
             applyIssuesFromSync(issues)
+            AppLogger.shared.info("Loaded \(issues.count) issues from GitHub")
         } catch {
+            AppLogger.shared.error("Failed to load issues: \(error.localizedDescription)")
             self.errorMessage = error.localizedDescription
         }
 
@@ -164,7 +166,9 @@ class IssuesListViewModel: ObservableObject {
         do {
             let updatedIssue = try await apiService.updateIssue(issueId: issue.id, title: nil, body: nil, state: .closed)
             upsertIssueInCache(updatedIssue)
+            AppLogger.shared.info("Closed issue #\(issue.number) (\(issue.repository.fullName))")
         } catch {
+            AppLogger.shared.error("Failed to close issue #\(issue.number): \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -174,7 +178,9 @@ class IssuesListViewModel: ObservableObject {
         do {
             let updatedIssue = try await apiService.updateIssue(issueId: issue.id, title: nil, body: nil, state: .open)
             upsertIssueInCache(updatedIssue)
+            AppLogger.shared.info("Reopened issue #\(issue.number) (\(issue.repository.fullName))")
         } catch {
+            AppLogger.shared.error("Failed to reopen issue #\(issue.number): \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -184,7 +190,9 @@ class IssuesListViewModel: ObservableObject {
         do {
             try await apiService.deleteIssue(issueId: issue.id)
             removeIssueFromCache(id: issue.id)
+            AppLogger.shared.info("Deleted issue #\(issue.number) (\(issue.repository.fullName))")
         } catch {
+            AppLogger.shared.error("Failed to delete issue #\(issue.number): \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -211,7 +219,9 @@ class IssuesListViewModel: ObservableObject {
                 author: issue.author
             )
             upsertIssueInCache(updated)
+            AppLogger.shared.info("Updated assignees for issue #\(issue.number) (\(assignees.count) assignee(s))")
         } catch {
+            AppLogger.shared.error("Failed to assign issue #\(issue.number): \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -226,7 +236,9 @@ class IssuesListViewModel: ObservableObject {
                 labelIds: issue.labels.map { $0.id }
             )
             upsertIssueInCache(cloned)
+            AppLogger.shared.info("Cloned issue #\(issue.number) (\(issue.repository.fullName)) to #\(cloned.number)")
         } catch {
+            AppLogger.shared.error("Failed to clone issue #\(issue.number): \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -246,6 +258,7 @@ class IssuesListViewModel: ObservableObject {
 
     /// Copies the given issues into the destination repository, updating the cache for each success.
     func copyIssues(_ issues: [Issue], to destination: Repository, progress: ((Int, Int) -> Void)? = nil) async -> TransferResult {
+        AppLogger.shared.info("Copying \(issues.count) issue(s) to \(destination.fullName)")
         var succeeded = 0
         var failures: [(issue: Issue, message: String)] = []
         for (index, issue) in issues.enumerated() {
@@ -253,17 +266,21 @@ class IssuesListViewModel: ObservableObject {
                 let newIssue = try await apiService.copyIssue(issue, to: destination)
                 upsertIssueInCache(newIssue)
                 succeeded += 1
+                AppLogger.shared.info("Copied issue #\(issue.number) (\(issue.repository.fullName)) to \(destination.fullName) #\(newIssue.number)")
             } catch {
+                AppLogger.shared.error("Failed to copy issue #\(issue.number) to \(destination.fullName): \(error.localizedDescription)")
                 failures.append((issue, error.localizedDescription))
             }
             progress?(index + 1, issues.count)
         }
+        AppLogger.shared.info("Copy finished: \(succeeded) succeeded, \(failures.count) failed")
         return TransferResult(succeeded: succeeded, failures: failures)
     }
 
     /// Moves the given issues into the destination repository (preserving timestamps), updating
     /// the cache for each success: the new issue is inserted and the original removed.
     func moveIssues(_ issues: [Issue], to destination: Repository, progress: ((Int, Int) -> Void)? = nil) async -> TransferResult {
+        AppLogger.shared.info("Moving \(issues.count) issue(s) to \(destination.fullName)")
         var succeeded = 0
         var failures: [(issue: Issue, message: String)] = []
         for (index, issue) in issues.enumerated() {
@@ -272,11 +289,14 @@ class IssuesListViewModel: ObservableObject {
                 removeIssueFromCache(id: issue.id)
                 upsertIssueInCache(newIssue)
                 succeeded += 1
+                AppLogger.shared.info("Moved issue #\(issue.number) (\(issue.repository.fullName)) to \(destination.fullName) #\(newIssue.number)")
             } catch {
+                AppLogger.shared.error("Failed to move issue #\(issue.number) to \(destination.fullName): \(error.localizedDescription)")
                 failures.append((issue, error.localizedDescription))
             }
             progress?(index + 1, issues.count)
         }
+        AppLogger.shared.info("Move finished: \(succeeded) succeeded, \(failures.count) failed")
         return TransferResult(succeeded: succeeded, failures: failures)
     }
 

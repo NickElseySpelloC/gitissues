@@ -160,6 +160,7 @@ class GraphQLClient {
 
         // Handle common HTTP errors
         if httpResponse.statusCode == 401 {
+            AppLogger.shared.error("GraphQL request unauthorized (HTTP 401)")
             throw GraphQLError.unauthorized
         }
         if httpResponse.statusCode == 403 {
@@ -167,11 +168,13 @@ class GraphQLClient {
             if remaining == "0" {
                 let resetStr = httpResponse.value(forHTTPHeaderField: "X-RateLimit-Reset")
                 let resetDate = resetStr.flatMap { TimeInterval($0) }.map { Date(timeIntervalSince1970: $0) }
+                AppLogger.shared.warning("GraphQL request rate limited (resets \(resetDate.map { "\($0)" } ?? "unknown"))")
                 throw GraphQLError.rateLimited(reset: resetDate)
             }
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
+            AppLogger.shared.error("GraphQL request failed with HTTP \(httpResponse.statusCode)")
             throw GraphQLError.serverError("HTTP \(httpResponse.statusCode)")
         }
 
@@ -184,6 +187,7 @@ class GraphQLClient {
 
             if let errors = graphQLResponse.errors, !errors.isEmpty {
                 let errorMessages = errors.map { $0.message }
+                AppLogger.shared.error("GraphQL errors: \(errorMessages.joined(separator: "; "))")
                 throw GraphQLError.graphQLErrors(errorMessages)
             }
 
@@ -193,14 +197,10 @@ class GraphQLClient {
 
             return data
         } catch let error as DecodingError {
-            // Log detailed decoding error
-            print("=== DECODING ERROR ===")
-            print("Error: \(error)")
-            if let jsonString = String(data: data, encoding: .utf8) {
-                print("Response JSON:")
-                print(jsonString)
-            }
-            print("======================")
+            // Log detailed decoding error to help diagnose schema/response mismatches.
+            let json = String(data: data, encoding: .utf8) ?? "<non-UTF8 response>"
+            AppLogger.shared.error("GraphQL decoding error: \(error)")
+            AppLogger.shared.debug("GraphQL response JSON: \(json)")
             throw GraphQLError.decodingError(error)
         }
     }

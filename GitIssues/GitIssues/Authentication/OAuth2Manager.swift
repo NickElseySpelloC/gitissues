@@ -68,6 +68,7 @@ final class OAuth2Manager: NSObject, ObservableObject {
 
     /// Primary sign-in: GitHub Device Flow (no client secret required).
     func signIn() {
+        AppLogger.shared.info("Sign-in started (device flow)")
         lastAuthErrorMessage = nil
         isAuthenticated = false
         isAuthenticating = true
@@ -77,12 +78,14 @@ final class OAuth2Manager: NSObject, ObservableObject {
     /// Call this after the user changes the "Private repo access" toggle.
     /// GitHub tokens do not "upgrade" scopes; we must re-authorize to obtain a new token.
     func reauthorizeForScopeChange() {
+        AppLogger.shared.info("Re-authorizing for scope change (private access: \(allowPrivateRepoAccess))")
         tokenStorage.clear()
         isAuthenticated = false
         signIn()
     }
 
     func signOut() {
+        AppLogger.shared.info("User signed out")
         tokenStorage.clear()
         isAuthenticated = false
         isAuthenticating = false
@@ -116,6 +119,7 @@ final class OAuth2Manager: NSObject, ObservableObject {
                 )
             } catch {
                 let msg = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                AppLogger.shared.error("Device flow authentication failed: \(msg)")
                 lastAuthErrorMessage = msg
                 isAuthenticating = false
                 // keep the prompt visible so the user can retry/cancel as they wish
@@ -137,9 +141,7 @@ final class OAuth2Manager: NSObject, ObservableObject {
 
         let (data, _) = try await URLSession.shared.data(for: request)
 
-        if let responseString = String(data: data, encoding: .utf8) {
-            print("Device Flow start response: \(responseString)")
-        }
+        AppLogger.shared.debug("Requested device code (scope: \(scope))")
 
         return try JSONDecoder().decode(GitHubDeviceCodeResponse.self, from: data)
     }
@@ -165,13 +167,10 @@ final class OAuth2Manager: NSObject, ObservableObject {
 
             let (data, _) = try await URLSession.shared.data(for: request)
 
-            if let responseString = String(data: data, encoding: .utf8) {
-                print("Device Flow poll response: \(responseString)")
-            }
-
             let decoded = try JSONDecoder().decode(GitHubTokenResponse.self, from: data)
 
             if let token = decoded.accessToken, !token.isEmpty {
+                AppLogger.shared.info("Authentication succeeded")
                 tokenStorage.saveAccessToken(token)
                 isAuthenticated = true
                 isAuthenticating = false
@@ -223,9 +222,9 @@ final class OAuth2Manager: NSObject, ObservableObject {
             if let error = error as? ASWebAuthenticationSessionError {
                 if error.code == .canceledLogin {
                     // User canceled - this is normal, they might close after seeing success
-                    print("Authentication session canceled by user")
+                    AppLogger.shared.debug("Authentication session canceled by user")
                 } else {
-                    print("Authentication session error: \(error.localizedDescription)")
+                    AppLogger.shared.warning("Authentication session error: \(error.localizedDescription)")
                 }
             }
         }
@@ -237,7 +236,7 @@ final class OAuth2Manager: NSObject, ObservableObject {
         #endif
         
         if !authSession!.start() {
-            print("Failed to start ASWebAuthenticationSession")
+            AppLogger.shared.error("Failed to start ASWebAuthenticationSession")
         }
     }
     

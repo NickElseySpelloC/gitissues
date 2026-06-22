@@ -30,7 +30,9 @@
       "Bash(.venv/bin/uv pip *)",
       "Bash(uv sync *)",
       "Bash(find /Users/nick/dev/sc-foundation -name \"*.py\" | xargs grep -l \"send_email\" 2>/dev/null)",
-      "WebFetch(domain:docs.github.com)"
+      "WebFetch(domain:docs.github.com)",
+      "Read(//Users/nick/Library/Containers/com.spelloconsulting.gitissues/Data/Library/**)",
+      "Read(//Users/nick/Library/Containers/com.spelloconsulting.gitissues/Data/Library/Logs/**)"
     ]
   }
 }

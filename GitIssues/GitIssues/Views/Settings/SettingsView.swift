@@ -12,8 +12,18 @@ struct SettingsView: View {
     @StateObject private var appearanceService = AppearanceService.shared
 
     var body: some View {
-        GeneralSettingsView(appearanceService: appearanceService, authManager: authManager)
-            .frame(width: 500, height: 450)
+        TabView {
+            GeneralSettingsView(appearanceService: appearanceService, authManager: authManager)
+                .tabItem {
+                    SwiftUI.Label("General", systemImage: "gearshape")
+                }
+
+            LoggingSettingsView()
+                .tabItem {
+                    SwiftUI.Label("Logging", systemImage: "doc.text.magnifyingglass")
+                }
+        }
+        .frame(width: 540, height: 480)
     }
 }
 
@@ -111,6 +121,71 @@ struct GeneralSettingsView: View {
             .padding()
         }
         .formStyle(.grouped)
+    }
+}
+
+struct LoggingSettingsView: View {
+    @AppStorage(AppLogger.logLevelKey) private var logLevelRaw = LogLevel.information.rawValue
+    @State private var showDeleteConfirmation = false
+
+    var body: some View {
+        Form {
+            VStack(alignment: .leading, spacing: 20) {
+                // Logging level
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Logging Level")
+                        .font(.headline)
+
+                    Picker("Log entries to record", selection: $logLevelRaw) {
+                        ForEach(LogLevel.allCases) { level in
+                            Text(level.displayName).tag(level.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 250)
+
+                    Text("Records entries at the selected level and all more serious ones. “Debug” records everything; “Errors” records only errors.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Divider()
+
+                // Log files
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Log Files")
+                        .font(.headline)
+
+                    Text("Logs are stored in the app's container and rotate automatically (up to 10 files, 20 MB each).")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack {
+                        Button("Reveal in Finder") {
+                            AppLogger.shared.revealInFinder()
+                        }
+
+                        Button("Delete All Logs…", role: .destructive) {
+                            showDeleteConfirmation = true
+                        }
+                    }
+                    .padding(.top, 6)
+                }
+            }
+            .padding()
+        }
+        .formStyle(.grouped)
+        .alert("Delete All Logs", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                AppLogger.shared.deleteAllLogs()
+                AppLogger.shared.info("Log files deleted by user")
+            }
+        } message: {
+            Text("This permanently deletes all GitIssues log files. This cannot be undone.")
+        }
     }
 }
 
