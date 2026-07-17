@@ -138,11 +138,12 @@ struct GraphQLQueries {
     }
     """
 
-    /// Query to fetch all repositories owned by the user
+    /// Query to fetch all repositories the user can open issues in, including those
+    /// owned by organisations they belong to.
     static let repositoriesQuery = """
     query Repositories($cursor: String, $first: Int = 100) {
       viewer {
-        repositories(first: $first, after: $cursor, ownerAffiliations: OWNER, orderBy: {field: NAME, direction: ASC}) {
+        repositories(first: $first, after: $cursor, affiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER], ownerAffiliations: [OWNER, ORGANIZATION_MEMBER], orderBy: {field: NAME, direction: ASC}) {
           pageInfo {
             hasNextPage
             endCursor
@@ -154,6 +155,8 @@ struct GraphQLQueries {
               login
             }
             isPrivate
+            hasIssuesEnabled
+            isArchived
           }
         }
       }
@@ -1019,6 +1022,13 @@ struct RepositoriesResponse: Codable {
         let name: String
         let owner: OwnerNode
         let isPrivate: Bool
+        let hasIssuesEnabled: Bool
+        let isArchived: Bool
+
+        /// Issue creation fails on archived repos and on repos with the Issues tab turned off.
+        var acceptsNewIssues: Bool {
+            hasIssuesEnabled && !isArchived
+        }
 
         func toRepository() -> Repository {
             return Repository(

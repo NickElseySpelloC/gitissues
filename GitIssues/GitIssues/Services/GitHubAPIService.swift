@@ -324,7 +324,8 @@ class GitHubAPIService {
         )
     }
 
-    /// Fetches all repositories owned by the authenticated user
+    /// Fetches repositories the authenticated user can open issues in, including
+    /// organisation-owned ones. Repos that reject new issues are omitted.
     /// - Parameter cursor: Pagination cursor for fetching next page
     /// - Returns: Array of repositories and pagination info
     func fetchRepositories(cursor: String? = nil) async throws -> (repositories: [Repository], hasNextPage: Bool, endCursor: String?) {
@@ -339,7 +340,9 @@ class GitHubAPIService {
             variables: variables
         )
 
-        let repositories = response.viewer.repositories.nodes.map { $0.toRepository() }
+        let repositories = response.viewer.repositories.nodes
+            .filter { $0.acceptsNewIssues }
+            .map { $0.toRepository() }
         let pageInfo = response.viewer.repositories.pageInfo
 
         return (repositories, pageInfo.hasNextPage, pageInfo.endCursor)
