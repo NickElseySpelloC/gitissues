@@ -33,7 +33,8 @@
       "WebFetch(domain:docs.github.com)",
       "Read(//Users/nick/Library/Containers/com.spelloconsulting.gitissues/Data/Library/**)",
       "Read(//Users/nick/Library/Containers/com.spelloconsulting.gitissues/Data/Library/Logs/**)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(grep -iE '\\\\.swift$')"
     ]
   }
 }
