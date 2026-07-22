@@ -18,6 +18,11 @@ struct SettingsView: View {
                     SwiftUI.Label("General", systemImage: "gearshape")
                 }
 
+            KanbanSettingsView()
+                .tabItem {
+                    SwiftUI.Label("Kanban", systemImage: "rectangle.split.3x1")
+                }
+
             LoggingSettingsView()
                 .tabItem {
                     SwiftUI.Label("Logging", systemImage: "doc.text.magnifyingglass")

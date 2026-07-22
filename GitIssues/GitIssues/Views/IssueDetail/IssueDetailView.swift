@@ -81,9 +81,10 @@ struct IssueDetailView: View {
                 // Metadata
                 IssueMetadataView(issue: viewModel.issue)
 
-                // Labels
-                if !viewModel.issue.labels.isEmpty {
-                    LabelsSection(labels: viewModel.issue.labels)
+                // Labels (Kanban state labels are hidden)
+                let visibleLabels = Kanban.visibleLabels(viewModel.issue.labels)
+                if !visibleLabels.isEmpty {
+                    LabelsSection(labels: visibleLabels)
                 }
 
                 // Assignees
@@ -93,9 +94,10 @@ struct IssueDetailView: View {
 
                 Divider()
 
-                // Issue body
-                if let body = viewModel.issue.body, !body.isEmpty {
-                    IssueBodyView(bodyText: body, author: viewModel.issue.author, apiService: viewModel.apiService)
+                // Issue body (with the hidden Kanban order marker stripped)
+                let renderedBody = KanbanOrderMarker.strip(from: viewModel.issue.body)
+                if !renderedBody.isEmpty {
+                    IssueBodyView(bodyText: renderedBody, author: viewModel.issue.author, apiService: viewModel.apiService)
                 } else {
                     Text("No description provided")
                         .foregroundColor(.secondary)

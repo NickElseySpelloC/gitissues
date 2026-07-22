@@ -243,6 +243,139 @@ class IssuesListViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Kanban
+
+    /// Transient status message for the Kanban board (e.g. an issue leaving the filtered view).
+    /// Auto-clears after a few seconds.
+    @Published var kanbanToastMessage: String?
+
+    private func showKanbanToast(_ message: String) {
+        kanbanToastMessage = message
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if self?.kanbanToastMessage == message {
+                self?.kanbanToastMessage = nil
+            }
+        }
+    }
+
+    /// Moves a single issue to a Kanban state (column) and sets its order key.
+    ///
+    /// The cache is updated **optimistically** so the card moves immediately; the GitHub API
+    /// calls run afterwards and reconcile (or revert) in the background.
+    func moveIssue(_ issue: Issue, to state: KanbanState, orderKey: String) async {
+        let optimistic = makeOptimisticMove(issue, to: state, orderKey: orderKey)
+        upsertIssueInCache(optimistic)
+        if !filterOptions.matches(issue: optimistic, viewerLogin: viewerLogin) {
+            showKanbanToast("#\(optimistic.number) → \(state.name) (hidden by current filter)")
+        }
+        await performKanbanMove(issue, to: state, orderKey: orderKey, revertTo: issue)
+    }
+
+    /// Moves several issues into a Kanban state, assigning the given consecutive order keys.
+    /// All cards move optimistically first; the API work then reconciles in the background.
+    func moveIssues(_ issues: [Issue], to state: KanbanState, orderKeys: [String]) async {
+        var hidden = 0
+        for (issue, key) in zip(issues, orderKeys) {
+            let optimistic = makeOptimisticMove(issue, to: state, orderKey: key)
+            upsertIssueInCache(optimistic)
+            if !filterOptions.matches(issue: optimistic, viewerLogin: viewerLogin) {
+                hidden += 1
+            }
+        }
+        if hidden > 0 {
+            showKanbanToast("\(hidden) issue\(hidden == 1 ? "" : "s") → \(state.name) (hidden by current filter)")
+        }
+        for (issue, key) in zip(issues, orderKeys) {
+            await performKanbanMove(issue, to: state, orderKey: key, revertTo: issue)
+        }
+    }
+
+    /// Builds a locally-updated copy of `issue` reflecting the move: managed Kanban labels swapped
+    /// for the target's (unless it's the clutter-free default/closed state), the order marker set,
+    /// and the open/closed state flipped to match the column. Used for the optimistic cache update;
+    /// the real label IDs and body are reconciled once the API calls return.
+    private func makeOptimisticMove(_ issue: Issue, to state: KanbanState, orderKey: String) -> Issue {
+        let settings = KanbanSettingsService.shared
+        let managed = settings.managedLabelNames
+        var labels = issue.labels.filter { !managed.contains($0.name.lowercased()) }
+        let isClutterFree = state.id == settings.defaultState.id || state.isClosed
+        if !isClutterFree {
+            labels.append(Label(
+                id: "kanban-optimistic-\(state.id.uuidString)",
+                name: Kanban.labelName(for: state),
+                color: settings.color(for: state)
+            ))
+        }
+        return Issue(
+            id: issue.id,
+            number: issue.number,
+            title: issue.title,
+            body: KanbanOrderMarker.inject(orderKey, into: issue.body),
+            state: state.isClosed ? .closed : .open,
+            createdAt: issue.createdAt,
+            updatedAt: issue.updatedAt,
+            repository: issue.repository,
+            labels: labels,
+            assignees: issue.assignees,
+            author: issue.author
+        )
+    }
+
+    /// Applies a Kanban move to GitHub, then upserts the canonical issue. Reverts to `original` on
+    /// failure. Only labels matching a *configured* state are touched; other users' `kanban-*`
+    /// labels are left intact.
+    private func performKanbanMove(_ issue: Issue, to state: KanbanState, orderKey: String, revertTo original: Issue) async {
+        let settings = KanbanSettingsService.shared
+        do {
+            // Fetch the latest issue so we act on current labels/body (minimises clobber).
+            let (current, _) = try await apiService.fetchIssueDetail(
+                owner: issue.repository.owner.login,
+                repo: issue.repository.name,
+                number: issue.number
+            )
+
+            // 1. Remove the managed Kanban labels currently on the issue.
+            let managed = settings.managedLabelNames
+            let labelsToRemove = current.labels.filter { managed.contains($0.name.lowercased()) }
+            if !labelsToRemove.isEmpty {
+                try await apiService.removeLabelsFromIssue(issueId: issue.id, labelIds: labelsToRemove.map { $0.id })
+            }
+
+            // 2. Add the target label unless this is the clutter-free default or closed state.
+            let isClutterFree = state.id == settings.defaultState.id || state.isClosed
+            if !isClutterFree {
+                let label = try await apiService.ensureLabel(
+                    in: issue.repository,
+                    name: Kanban.labelName(for: state),
+                    color: settings.color(for: state)
+                )
+                try await apiService.addLabelsToIssue(issueId: issue.id, labelIds: [label.id])
+            }
+
+            // 3. Write the order key into the body marker, and flip open/closed to match the column.
+            let newState: IssueState? = (state.isClosed != (issue.state == .closed))
+                ? (state.isClosed ? .closed : .open)
+                : nil
+            let newBody = KanbanOrderMarker.inject(orderKey, into: current.body)
+            _ = try await apiService.updateIssue(issueId: issue.id, title: nil, body: newBody, state: newState)
+
+            // 4. Re-fetch the canonical issue and reconcile the cache (real label IDs, etc.).
+            let (updated, _) = try await apiService.fetchIssueDetail(
+                owner: issue.repository.owner.login,
+                repo: issue.repository.name,
+                number: issue.number
+            )
+            upsertIssueInCache(updated)
+            AppLogger.shared.info("Moved issue #\(issue.number) (\(issue.repository.fullName)) to kanban state '\(state.name)'")
+        } catch {
+            AppLogger.shared.error("Failed to move issue #\(issue.number) to '\(state.name)': \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+            // Revert the optimistic change.
+            upsertIssueInCache(original)
+        }
+    }
+
     // MARK: - Cross-Repository Transfer
 
     /// Fetches all repositories the user can transfer issues into.
@@ -393,6 +526,8 @@ class IssuesListViewModel: ObservableObject {
         var labels: [Label] = []
         for issue in issuesInScope {
             for label in issue.labels {
+                // Hide Kanban state labels from the filter UI.
+                if Kanban.isKanbanLabel(label.name) { continue }
                 let key = label.name.lowercased()
                 if seen.insert(key).inserted {
                     labels.append(Label(id: key, name: key, color: label.color))

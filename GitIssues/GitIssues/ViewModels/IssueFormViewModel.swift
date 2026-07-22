@@ -40,6 +40,9 @@ class IssueFormViewModel: ObservableObject {
     private var repositoryOwner: String?
     private var repositoryName: String?
 
+    // Hidden Kanban order marker parsed out of the body on load, re-injected on save.
+    private var originalOrderKey: String?
+
     // Form mode
     enum IssueFormMode {
         case create
@@ -58,7 +61,8 @@ class IssueFormViewModel: ObservableObject {
             break
         case .edit(let issue):
             self.title = issue.title
-            self.body = issue.body ?? ""
+            self.originalOrderKey = KanbanOrderMarker.parse(from: issue.body)
+            self.body = KanbanOrderMarker.strip(from: issue.body)
             self.selectedState = issue.state
             self.selectedRepositoryId = issue.repository.id
             // Pre-select existing labels
@@ -79,7 +83,8 @@ class IssueFormViewModel: ObservableObject {
         case .edit:
             if let data = issueData {
                 self.title = data.title
-                self.body = data.body ?? ""
+                self.originalOrderKey = KanbanOrderMarker.parse(from: data.body)
+                self.body = KanbanOrderMarker.strip(from: data.body)
                 self.selectedState = IssueState(rawValue: data.state) ?? .open
                 self.selectedRepositoryId = data.repositoryId
                 self.selectedLabelIds = Set(data.labelIds)
@@ -138,10 +143,12 @@ class IssueFormViewModel: ObservableObject {
 
         isLoadingLabels = true
         do {
-            availableLabels = try await apiService.fetchAllRepositoryLabels(
+            // Hide Kanban state labels from normal label editing.
+            let all = try await apiService.fetchAllRepositoryLabels(
                 owner: ownerLogin,
                 repo: repoName
             )
+            availableLabels = Kanban.visibleLabels(all)
         } catch {
             errorMessage = "Failed to load labels: \(error.localizedDescription)"
         }
@@ -181,8 +188,11 @@ class IssueFormViewModel: ObservableObject {
                 name: name,
                 color: color
             )
-            availableLabels.append(label)
-            availableLabels.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            // Don't surface Kanban state labels in the editor.
+            if !Kanban.isKanbanLabel(label.name) {
+                availableLabels.append(label)
+                availableLabels.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            }
             selectedLabelIds.insert(label.id)
         } catch {
             createLabelError = error.localizedDescription
@@ -276,15 +286,32 @@ class IssueFormViewModel: ObservableObject {
                     issueId = existingIssue.id
                 }
 
-                // Only send changed fields
+                // Only send changed fields. Compare against the body with the hidden Kanban
+                // order marker stripped, and re-inject that marker when sending an updated body
+                // so manual board ordering survives an edit.
+                let originalBodyStripped = KanbanOrderMarker.strip(from: originalBody)
+                let normalizedCurrent = body.isEmpty ? nil : body
+                let normalizedOriginal = originalBodyStripped.isEmpty ? nil : originalBodyStripped
+
                 let titleChanged = title != originalTitle
-                let bodyChanged = (body.isEmpty ? nil : body) != originalBody
+                let bodyChanged = normalizedCurrent != normalizedOriginal
                 let stateChanged = selectedState != originalState
+
+                let bodyToSend: String?
+                if bodyChanged {
+                    if let key = originalOrderKey {
+                        bodyToSend = KanbanOrderMarker.inject(key, into: body)
+                    } else {
+                        bodyToSend = normalizedCurrent
+                    }
+                } else {
+                    bodyToSend = nil
+                }
 
                 issue = try await apiService.updateIssue(
                     issueId: issueId,
                     title: titleChanged ? title : nil,
-                    body: bodyChanged ? (body.isEmpty ? nil : body) : nil,
+                    body: bodyToSend,
                     state: stateChanged ? selectedState : nil
                 )
 
