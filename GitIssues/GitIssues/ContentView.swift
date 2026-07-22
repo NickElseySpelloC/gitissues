@@ -21,8 +21,10 @@ struct ContentView: View {
     @State private var issueToAssign: Issue?
     @State private var showDeleteConfirmation = false
     @State private var sidebarWidth: CGFloat?
+    @State private var windowWidth: CGFloat = 1200
     @State private var cancellables = Set<AnyCancellable>()
     @State private var scrollToIssueID: String?
+    @AppStorage("kanbanViewEnabled") private var kanbanViewEnabled = false
     // Batch operation state
     @State private var batchOpIssues: Set<Issue> = []
     @State private var showBatchDeleteConfirmation = false
@@ -34,6 +36,54 @@ struct ContentView: View {
 
     var singleSelectedIssue: Issue? {
         selectedIssues.count == 1 ? selectedIssues.first : nil
+    }
+
+    /// Issue-action closures shared by the list rows' context menu and the Kanban board cards.
+    private var issueActions: IssueActions {
+        IssueActions(
+            edit: { issue in
+                if let accessToken = authManager.getAccessToken() {
+                    let issueData = IssueFormWindowData.IssueData(
+                        issueId: issue.id,
+                        title: issue.title,
+                        body: issue.body,
+                        state: issue.state.rawValue,
+                        repositoryId: issue.repository.id,
+                        repositoryOwner: issue.repository.owner.login,
+                        repositoryName: issue.repository.name,
+                        labelIds: issue.labels.map { $0.id }
+                    )
+                    let windowData = IssueFormWindowData(mode: .edit, accessToken: accessToken, issueData: issueData)
+                    openWindow(id: WindowIdentifier.issueForm.rawValue, value: windowData)
+                }
+            },
+            clone: { issue in Task { await viewModel.viewModel?.cloneIssue(issue) } },
+            assign: { issue in issueToAssign = issue },
+            copyToRepo: { issues in transferRequest = TransferRequest(mode: .copy, issues: issues) },
+            moveToRepo: { issues in transferRequest = TransferRequest(mode: .move, issues: issues) },
+            close: { issue in Task { await viewModel.viewModel?.closeIssue(issue) } },
+            reopen: { issue in Task { await viewModel.viewModel?.reopenIssue(issue) } },
+            delete: { issue in
+                issueToDelete = issue
+                showDeleteConfirmation = true
+            },
+            batchClone: { sel in
+                batchOpIssues = sel
+                showBatchCloneConfirmation = true
+            },
+            batchAssign: { sel in
+                batchOpIssues = sel
+                showBatchAssignSheet = true
+            },
+            batchClose: { sel in
+                batchOpIssues = sel
+                showBatchCloseConfirmation = true
+            },
+            batchDelete: { sel in
+                batchOpIssues = sel
+                showBatchDeleteConfirmation = true
+            }
+        )
     }
 
     private let appStateService = AppStateService()
@@ -124,6 +174,13 @@ struct ContentView: View {
                                 .buttonStyle(.borderedProminent)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else if kanbanViewEnabled {
+                            KanbanBoardView(
+                                viewModel: vm,
+                                settings: KanbanSettingsService.shared,
+                                selectedIssues: $selectedIssues,
+                                actions: issueActions
+                            )
                         } else if vm.filteredIssues.isEmpty {
                             VStack(spacing: 16) {
                                 Image(systemName: searchText.isEmpty ? "checkmark.circle" : "magnifyingglass")
@@ -150,116 +207,7 @@ struct ContentView: View {
                                 )
                                 .tag(issue)
                                 .contextMenu {
-                                    let isBatchTarget = selectedIssues.contains(issue) && selectedIssues.count > 1
-                                    if isBatchTarget {
-                                        // Batch operations for multi-select
-                                        Text("\(selectedIssues.count) issues selected")
-                                            .foregroundColor(.secondary)
-                                        Divider()
-                                        Button {
-                                            batchOpIssues = selectedIssues
-                                            showBatchCloneConfirmation = true
-                                        } label: {
-                                            SwiftUI.Label("Clone \(selectedIssues.count) Issues", systemImage: "doc.on.doc")
-                                        }
-                                        Button {
-                                            batchOpIssues = selectedIssues
-                                            showBatchAssignSheet = true
-                                        } label: {
-                                            SwiftUI.Label("Assign \(selectedIssues.count) Issues", systemImage: "person.badge.plus")
-                                        }
-                                        Button {
-                                            transferRequest = TransferRequest(mode: .copy, issues: Array(selectedIssues))
-                                        } label: {
-                                            SwiftUI.Label("Copy \(selectedIssues.count) Issues to Repository…", systemImage: "doc.on.doc")
-                                        }
-                                        Button {
-                                            transferRequest = TransferRequest(mode: .move, issues: Array(selectedIssues))
-                                        } label: {
-                                            SwiftUI.Label("Move \(selectedIssues.count) Issues to Repository…", systemImage: "arrow.right.square")
-                                        }
-                                        let openCount = selectedIssues.filter { $0.state == .open }.count
-                                        if openCount > 0 {
-                                            Button {
-                                                batchOpIssues = selectedIssues
-                                                showBatchCloseConfirmation = true
-                                            } label: {
-                                                SwiftUI.Label("Close \(openCount) Open Issue\(openCount == 1 ? "" : "s")", systemImage: "checkmark.circle")
-                                            }
-                                        }
-                                        Divider()
-                                        Button(role: .destructive) {
-                                            batchOpIssues = selectedIssues
-                                            showBatchDeleteConfirmation = true
-                                        } label: {
-                                            SwiftUI.Label("Delete \(selectedIssues.count) Issues", systemImage: "trash")
-                                        }
-                                    } else {
-                                        // Single-issue operations
-                                        Button {
-                                            if let accessToken = authManager.getAccessToken() {
-                                                let issueData = IssueFormWindowData.IssueData(
-                                                    issueId: issue.id,
-                                                    title: issue.title,
-                                                    body: issue.body,
-                                                    state: issue.state.rawValue,
-                                                    repositoryId: issue.repository.id,
-                                                    repositoryOwner: issue.repository.owner.login,
-                                                    repositoryName: issue.repository.name,
-                                                    labelIds: issue.labels.map { $0.id }
-                                                )
-                                                let windowData = IssueFormWindowData(
-                                                    mode: .edit,
-                                                    accessToken: accessToken,
-                                                    issueData: issueData
-                                                )
-                                                openWindow(id: WindowIdentifier.issueForm.rawValue, value: windowData)
-                                            }
-                                        } label: {
-                                            SwiftUI.Label("Edit Issue", systemImage: "pencil")
-                                        }
-                                        Button {
-                                            Task { await vm.cloneIssue(issue) }
-                                        } label: {
-                                            SwiftUI.Label("Clone Issue", systemImage: "doc.on.doc")
-                                        }
-                                        Button {
-                                            issueToAssign = issue
-                                        } label: {
-                                            SwiftUI.Label("Assign Issue", systemImage: "person.badge.plus")
-                                        }
-                                        Button {
-                                            transferRequest = TransferRequest(mode: .copy, issues: [issue])
-                                        } label: {
-                                            SwiftUI.Label("Copy to Repository…", systemImage: "doc.on.doc")
-                                        }
-                                        Button {
-                                            transferRequest = TransferRequest(mode: .move, issues: [issue])
-                                        } label: {
-                                            SwiftUI.Label("Move to Repository…", systemImage: "arrow.right.square")
-                                        }
-                                        Divider()
-                                        if issue.state == .open {
-                                            Button {
-                                                Task { await vm.closeIssue(issue) }
-                                            } label: {
-                                                SwiftUI.Label("Close Issue", systemImage: "checkmark.circle")
-                                            }
-                                        } else {
-                                            Button {
-                                                Task { await vm.reopenIssue(issue) }
-                                            } label: {
-                                                SwiftUI.Label("Reopen Issue", systemImage: "arrow.counterclockwise.circle")
-                                            }
-                                        }
-                                        Divider()
-                                        Button(role: .destructive) {
-                                            issueToDelete = issue
-                                            showDeleteConfirmation = true
-                                        } label: {
-                                            SwiftUI.Label("Delete Issue", systemImage: "trash")
-                                        }
-                                    }
+                                    issueContextMenu(for: issue, selection: selectedIssues, actions: issueActions)
                                 }
                             }
                             .listStyle(.sidebar)
@@ -305,7 +253,7 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(
                 min: 400,
                 ideal: sidebarWidth ?? 600,
-                max: 800
+                max: max(800, windowWidth * 0.8)
             )
             .toolbar(content: {
                 ToolbarItemGroup(placement: .automatic) {
@@ -430,6 +378,10 @@ struct ContentView: View {
                 let width = splitView.subviews[0].frame.width
                 sidebarWidth = width
                 appStateService.saveSidebarWidth(Double(width))
+                // Track the total window width so the left panel can grow to ~80% of it.
+                if splitView.frame.width > 0 {
+                    windowWidth = splitView.frame.width
+                }
             }
         }
         .alert("Delete Issue", isPresented: $showDeleteConfirmation) {
@@ -630,10 +582,11 @@ struct IssueRow: View {
                         .foregroundColor(.secondary)
                 }
 
-                if !issue.labels.isEmpty {
+                let visibleLabels = Kanban.visibleLabels(issue.labels)
+                if !visibleLabels.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 4) {
-                            ForEach(issue.labels) { label in
+                            ForEach(visibleLabels) { label in
                                 LabelBadge(label: label)
                             }
                         }

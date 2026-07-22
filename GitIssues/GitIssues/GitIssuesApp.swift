@@ -30,6 +30,7 @@ struct GitIssuesApp: App {
 
             // Add custom commands
             MainWindowCommands()
+            ViewCommands()
         }
         .defaultPosition(.center)
         .defaultSize(width: 1200, height: 800)
@@ -72,6 +73,34 @@ struct MainAppView: View {
             }
         }
         .environmentObject(authManager)
+    }
+}
+
+// MARK: - View Commands
+/// Adds a "View" menu to switch the left panel between the normal list and the Kanban board.
+/// Backed by `@AppStorage("kanbanViewEnabled")`, which `ContentView` also reads.
+struct ViewCommands: Commands {
+    @AppStorage("kanbanViewEnabled") private var kanbanViewEnabled = false
+
+    var body: some Commands {
+        CommandMenu("View") {
+            // Two toggles acting as a radio group so each shows a checkmark when active.
+            Toggle(isOn: Binding(
+                get: { !kanbanViewEnabled },
+                set: { if $0 { kanbanViewEnabled = false } }
+            )) {
+                Text("Normal View")
+            }
+            .keyboardShortcut("1", modifiers: [.command, .shift])
+
+            Toggle(isOn: Binding(
+                get: { kanbanViewEnabled },
+                set: { if $0 { kanbanViewEnabled = true } }
+            )) {
+                Text("Kanban View")
+            }
+            .keyboardShortcut("2", modifiers: [.command, .shift])
+        }
     }
 }
 

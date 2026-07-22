@@ -582,6 +582,17 @@ class GitHubAPIService {
         return resolved
     }
 
+    /// Finds a label by name in a repository, creating it if it doesn't exist. Case-insensitive match.
+    /// Used to ensure a Kanban state label (`kanban-<Status>`) exists before assigning it.
+    /// - Returns: The existing or newly created label.
+    func ensureLabel(in repository: Repository, name: String, color: String) async throws -> Label {
+        let existing = try await fetchAllRepositoryLabels(owner: repository.owner.login, repo: repository.name)
+        if let match = existing.first(where: { $0.name.lowercased() == name.lowercased() }) {
+            return match
+        }
+        return try await createLabel(repositoryId: repository.id, name: name, color: color)
+    }
+
     /// Copies an issue into the destination repository, transferring the title, description,
     /// labels and all comments. The copy is created fresh, so its creation timestamps and author
     /// reflect the current user and time (use `moveIssue` to preserve the original timestamps).
