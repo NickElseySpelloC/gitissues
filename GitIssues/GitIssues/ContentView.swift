@@ -367,6 +367,12 @@ struct ContentView: View {
                 }
                 .store(in: &cancellables)
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let vm = viewModel.viewModel {
+                ProgressFooterView(queue: vm.taskQueue)
+                    .animation(.easeInOut(duration: 0.2), value: vm.taskQueue.isProcessing)
+            }
+        }
         .background(WindowAccessor { window in
             // Use macOS native window frame autosave
             window.setFrameAutosaveName("MainWindow")
@@ -407,13 +413,9 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) { batchOpIssues = [] }
             Button("Delete All", role: .destructive) {
                 let issues = batchOpIssues
-                Task {
-                    for issue in issues {
-                        await viewModel.viewModel?.deleteIssue(issue)
-                    }
-                    selectedIssues.subtract(issues)
-                    batchOpIssues = []
-                }
+                viewModel.viewModel?.enqueueBatchDelete(Array(issues))
+                selectedIssues.subtract(issues)
+                batchOpIssues = []
             }
         } message: {
             Text("Permanently delete \(batchOpIssues.count) issues? This cannot be undone.")
@@ -423,12 +425,8 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) { batchOpIssues = [] }
             Button("Close") {
                 let issues = batchOpIssues.filter { $0.state == .open }
-                Task {
-                    for issue in issues {
-                        await viewModel.viewModel?.closeIssue(issue)
-                    }
-                    batchOpIssues = []
-                }
+                viewModel.viewModel?.enqueueBatchClose(Array(issues))
+                batchOpIssues = []
             }
         } message: {
             let openCount = batchOpIssues.filter { $0.state == .open }.count
@@ -439,12 +437,8 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) { batchOpIssues = [] }
             Button("Clone All") {
                 let issues = batchOpIssues
-                Task {
-                    for issue in issues {
-                        await viewModel.viewModel?.cloneIssue(issue)
-                    }
-                    batchOpIssues = []
-                }
+                viewModel.viewModel?.enqueueBatchClone(Array(issues))
+                batchOpIssues = []
             }
         } message: {
             Text("Create \(batchOpIssues.count) cloned copies of the selected issues?")
@@ -473,12 +467,8 @@ struct ContentView: View {
                     apiService: GitHubAPIService(accessToken: accessToken),
                     onSave: { users in
                         showBatchAssignSheet = false
-                        Task {
-                            for issue in issues {
-                                await viewModel.viewModel?.assignIssue(issue, assignees: users)
-                            }
-                            batchOpIssues = []
-                        }
+                        viewModel.viewModel?.enqueueBatchAssign(Array(issues), assignees: users)
+                        batchOpIssues = []
                     },
                     onCancel: {
                         showBatchAssignSheet = false
@@ -569,7 +559,7 @@ struct IssueRow: View {
                 }
 
                 HStack(spacing: 4) {
-                    Text(issue.repository.fullName)
+                    Text(issue.repositoryDisplayName)
                         .font(.caption)
                         .foregroundColor(.secondary)
 

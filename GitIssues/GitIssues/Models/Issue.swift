@@ -38,4 +38,10 @@ struct Issue: Codable, Identifiable, Hashable {
         case assignees
         case author
     }
+
+    /// The repository's full name, with a " (read-only)" suffix when the repo is archived or the
+    /// viewer lacks write access — used for display in the issue list and kanban cards.
+    var repositoryDisplayName: String {
+        repository.isReadOnly ? "\(repository.fullName) (read-only)" : repository.fullName
+    }
 }

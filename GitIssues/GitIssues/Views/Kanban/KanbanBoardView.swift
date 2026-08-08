@@ -117,7 +117,7 @@ struct KanbanColumnView: View {
                                 isSelected: selectedIssues.contains(issue),
                                 onTap: { handleTap(issue) }
                             )
-                            .draggable(issue.id)
+                            .draggableIf(!issue.repository.isReadOnly, issue.id)
                             .contextMenu {
                                 issueContextMenu(for: issue, selection: selectedIssues, actions: actions)
                             }
@@ -260,7 +260,7 @@ struct KanbanCardView: View {
                     .foregroundColor(.secondary)
             }
 
-            Text(issue.repository.fullName)
+            Text(issue.repositoryDisplayName)
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
@@ -288,5 +288,17 @@ struct KanbanCardView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
+    }
+}
+
+private extension View {
+    /// Applies `.draggable` only when `condition` is true; read-only cards can't be dragged.
+    @ViewBuilder
+    func draggableIf<T: Transferable>(_ condition: Bool, _ payload: T) -> some View {
+        if condition {
+            self.draggable(payload)
+        } else {
+            self
+        }
     }
 }

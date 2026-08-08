@@ -21,6 +21,8 @@ class IssuesListViewModel: ObservableObject {
 
     private let apiService: GitHubAPIService
     let pinningService: PinningService // Made public so detail view can access it
+    /// Serial queue for background GitHub mutations; drives the bottom progress bar.
+    let taskQueue = BackgroundTaskQueue()
     private let appStateService = AppStateService()
     private var cancellables = Set<AnyCancellable>()
     private var syncTask: Task<Void, Never>?
@@ -51,6 +53,18 @@ class IssuesListViewModel: ObservableObject {
             .dropFirst() // Skip initial value
             .sink { [weak self] newFilterOptions in
                 self?.appStateService.saveFilterState(newFilterOptions)
+            }
+            .store(in: &cancellables)
+
+        // Ensure the read-only preference reflects the current setting.
+        filterOptions.allowReadOnly = AppStateService.allowReadOnlyRepoAccess
+
+        // React to the "Allow read-only repository access" setting changing in Settings.
+        NotificationCenter.default.publisher(for: .allowReadOnlyRepoAccessChanged)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.filterOptions.allowReadOnly = AppStateService.allowReadOnlyRepoAccess
+                Task { await self.loadIssues() }
             }
             .store(in: &cancellables)
     }
@@ -161,9 +175,26 @@ class IssuesListViewModel: ObservableObject {
         pendingDeletions.insert(id)
     }
 
+    /// Removes any managed `kanban-<Status>` labels currently on the issue, so an issue closed
+    /// outside the Kanban board resolves to the Done (closed) column instead of lingering in its
+    /// old column. No-op when the issue carries no managed Kanban labels. Other users' `kanban-*`
+    /// labels (not part of this config) are left intact, mirroring `performKanbanMove`.
+    func clearManagedKanbanLabels(on issue: Issue) async {
+        let managed = KanbanSettingsService.shared.managedLabelNames
+        let labelsToRemove = issue.labels.filter { managed.contains($0.name.lowercased()) }
+        guard !labelsToRemove.isEmpty else { return }
+        do {
+            try await apiService.removeLabelsFromIssue(issueId: issue.id, labelIds: labelsToRemove.map { $0.id })
+        } catch {
+            AppLogger.shared.error("Failed to clear kanban labels on #\(issue.number): \(error.localizedDescription)")
+        }
+    }
+
     /// Closes an issue via the API and immediately updates the local cache.
     func closeIssue(_ issue: Issue) async {
         do {
+            // Clear the managed Kanban label first so the closed issue lands in the Done column.
+            await clearManagedKanbanLabels(on: issue)
             let updatedIssue = try await apiService.updateIssue(issueId: issue.id, title: nil, body: nil, state: .closed)
             upsertIssueInCache(updatedIssue)
             AppLogger.shared.info("Closed issue #\(issue.number) (\(issue.repository.fullName))")
@@ -243,6 +274,35 @@ class IssuesListViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Batch Operations (queued)
+    //
+    // These enqueue one operation per issue onto the shared serial queue, so a batch action shows
+    // up in the bottom progress bar ("Processing issue X of N …") and runs one item at a time.
+
+    func enqueueBatchDelete(_ issues: [Issue]) {
+        for issue in issues {
+            taskQueue.enqueue(title: issue.title) { [weak self] in await self?.deleteIssue(issue) }
+        }
+    }
+
+    func enqueueBatchClose(_ issues: [Issue]) {
+        for issue in issues where issue.state == .open {
+            taskQueue.enqueue(title: issue.title) { [weak self] in await self?.closeIssue(issue) }
+        }
+    }
+
+    func enqueueBatchClone(_ issues: [Issue]) {
+        for issue in issues {
+            taskQueue.enqueue(title: issue.title) { [weak self] in await self?.cloneIssue(issue) }
+        }
+    }
+
+    func enqueueBatchAssign(_ issues: [Issue], assignees: [User]) {
+        for issue in issues {
+            taskQueue.enqueue(title: issue.title) { [weak self] in await self?.assignIssue(issue, assignees: assignees) }
+        }
+    }
+
     // MARK: - Kanban
 
     /// Transient status message for the Kanban board (e.g. an issue leaving the filtered view).
@@ -269,7 +329,11 @@ class IssuesListViewModel: ObservableObject {
         if !filterOptions.matches(issue: optimistic, viewerLogin: viewerLogin) {
             showKanbanToast("#\(optimistic.number) → \(state.name) (hidden by current filter)")
         }
-        await performKanbanMove(issue, to: state, orderKey: orderKey, revertTo: issue)
+        // The API reconciliation runs on the shared serial queue so it's reflected in the
+        // bottom progress bar and can't overlap with other background work.
+        taskQueue.enqueue(title: issue.title) { [weak self] in
+            await self?.performKanbanMove(issue, to: state, orderKey: orderKey, revertTo: issue)
+        }
     }
 
     /// Moves several issues into a Kanban state, assigning the given consecutive order keys.
@@ -286,8 +350,11 @@ class IssuesListViewModel: ObservableObject {
         if hidden > 0 {
             showKanbanToast("\(hidden) issue\(hidden == 1 ? "" : "s") → \(state.name) (hidden by current filter)")
         }
+        // Enqueue each reconciliation on the shared serial queue (drives the progress bar).
         for (issue, key) in zip(issues, orderKeys) {
-            await performKanbanMove(issue, to: state, orderKey: key, revertTo: issue)
+            taskQueue.enqueue(title: issue.title) { [weak self] in
+                await self?.performKanbanMove(issue, to: state, orderKey: key, revertTo: issue)
+            }
         }
     }
 
@@ -391,20 +458,42 @@ class IssuesListViewModel: ObservableObject {
 
     /// Copies the given issues into the destination repository, updating the cache for each success.
     func copyIssues(_ issues: [Issue], to destination: Repository, progress: ((Int, Int) -> Void)? = nil) async -> TransferResult {
-        AppLogger.shared.info("Copying \(issues.count) issue(s) to \(destination.fullName)")
+        await copyIssues(issues, to: [destination], progress: progress)
+    }
+
+    /// Copies the given issues into **each** destination repository, updating the cache for every
+    /// success. Each per-issue copy runs on the shared serial queue (so it appears in the progress
+    /// bar). Progress is reported over the full `issues.count * destinations.count` work. Failure
+    /// messages are prefixed with the destination so the summary is unambiguous across repos.
+    func copyIssues(_ issues: [Issue], to destinations: [Repository], progress: ((Int, Int) -> Void)? = nil) async -> TransferResult {
+        let names = destinations.map { $0.fullName }.joined(separator: ", ")
+        AppLogger.shared.info("Copying \(issues.count) issue(s) to \(destinations.count) repo(s): \(names)")
+
+        // Build one queued operation per (destination, issue); results come back in this order.
+        var plan: [(issue: Issue, destination: Repository)] = []
+        for destination in destinations {
+            for issue in issues { plan.append((issue, destination)) }
+        }
+        let items: [(title: String, work: @MainActor () async -> Result<Issue, Error>)] = plan.map { entry in
+            (title: entry.issue.title, work: {
+                do { return .success(try await self.apiService.copyIssue(entry.issue, to: entry.destination)) }
+                catch { return .failure(error) }
+            })
+        }
+        let outcomes = await taskQueue.enqueueAll(items, onItemComplete: progress)
+
         var succeeded = 0
         var failures: [(issue: Issue, message: String)] = []
-        for (index, issue) in issues.enumerated() {
-            do {
-                let newIssue = try await apiService.copyIssue(issue, to: destination)
+        for (entry, outcome) in zip(plan, outcomes) {
+            switch outcome {
+            case .success(let newIssue):
                 upsertIssueInCache(newIssue)
                 succeeded += 1
-                AppLogger.shared.info("Copied issue #\(issue.number) (\(issue.repository.fullName)) to \(destination.fullName) #\(newIssue.number)")
-            } catch {
-                AppLogger.shared.error("Failed to copy issue #\(issue.number) to \(destination.fullName): \(error.localizedDescription)")
-                failures.append((issue, error.localizedDescription))
+                AppLogger.shared.info("Copied issue #\(entry.issue.number) (\(entry.issue.repository.fullName)) to \(entry.destination.fullName) #\(newIssue.number)")
+            case .failure(let error):
+                AppLogger.shared.error("Failed to copy issue #\(entry.issue.number) to \(entry.destination.fullName): \(error.localizedDescription)")
+                failures.append((entry.issue, "\(entry.destination.fullName): \(error.localizedDescription)"))
             }
-            progress?(index + 1, issues.count)
         }
         AppLogger.shared.info("Copy finished: \(succeeded) succeeded, \(failures.count) failed")
         return TransferResult(succeeded: succeeded, failures: failures)
@@ -414,20 +503,30 @@ class IssuesListViewModel: ObservableObject {
     /// the cache for each success: the new issue is inserted and the original removed.
     func moveIssues(_ issues: [Issue], to destination: Repository, progress: ((Int, Int) -> Void)? = nil) async -> TransferResult {
         AppLogger.shared.info("Moving \(issues.count) issue(s) to \(destination.fullName)")
+
+        // Each move runs on the shared serial queue (so it appears in the progress bar); the whole
+        // batch is enqueued up front so the bar reads "X of N".
+        let items: [(title: String, work: @MainActor () async -> Result<Issue, Error>)] = issues.map { issue in
+            (title: issue.title, work: {
+                do { return .success(try await self.apiService.moveIssue(issue, to: destination)) }
+                catch { return .failure(error) }
+            })
+        }
+        let outcomes = await taskQueue.enqueueAll(items, onItemComplete: progress)
+
         var succeeded = 0
         var failures: [(issue: Issue, message: String)] = []
-        for (index, issue) in issues.enumerated() {
-            do {
-                let newIssue = try await apiService.moveIssue(issue, to: destination)
+        for (issue, outcome) in zip(issues, outcomes) {
+            switch outcome {
+            case .success(let newIssue):
                 removeIssueFromCache(id: issue.id)
                 upsertIssueInCache(newIssue)
                 succeeded += 1
                 AppLogger.shared.info("Moved issue #\(issue.number) (\(issue.repository.fullName)) to \(destination.fullName) #\(newIssue.number)")
-            } catch {
+            case .failure(let error):
                 AppLogger.shared.error("Failed to move issue #\(issue.number) to \(destination.fullName): \(error.localizedDescription)")
                 failures.append((issue, error.localizedDescription))
             }
-            progress?(index + 1, issues.count)
         }
         AppLogger.shared.info("Move finished: \(succeeded) succeeded, \(failures.count) failed")
         return TransferResult(succeeded: succeeded, failures: failures)

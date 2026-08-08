@@ -43,6 +43,8 @@ struct GraphQLQueries {
                 avatarUrl
               }
               isPrivate
+              isArchived
+              viewerPermission
             }
             labels(first: 10) {
               nodes {
@@ -94,6 +96,8 @@ struct GraphQLQueries {
               avatarUrl
             }
             isPrivate
+            isArchived
+            viewerPermission
           }
           labels(first: 20) {
             nodes {
@@ -157,6 +161,7 @@ struct GraphQLQueries {
             isPrivate
             hasIssuesEnabled
             isArchived
+            viewerPermission
           }
         }
       }
@@ -203,6 +208,8 @@ struct GraphQLQueries {
               avatarUrl
             }
             isPrivate
+            isArchived
+            viewerPermission
           }
           labels(first: 10) {
             nodes {
@@ -253,6 +260,8 @@ struct GraphQLQueries {
               avatarUrl
             }
             isPrivate
+            isArchived
+            viewerPermission
           }
           labels(first: 10) {
             nodes {
@@ -488,13 +497,17 @@ struct AllIssuesResponse: Codable {
         let name: String
         let owner: OwnerNode
         let isPrivate: Bool
+        let isArchived: Bool?
+        let viewerPermission: String?
 
         func toRepository() -> Repository {
             Repository(
                 id: id,
                 name: name,
                 owner: owner.toUser(),
-                isPrivate: isPrivate
+                isPrivate: isPrivate,
+                isArchived: isArchived ?? false,
+                viewerPermission: viewerPermission
             )
         }
     }
@@ -596,13 +609,17 @@ struct IssueDetailResponse: Codable {
         let name: String
         let owner: OwnerNode
         let isPrivate: Bool
+        let isArchived: Bool?
+        let viewerPermission: String?
 
         func toRepository() -> Repository {
             Repository(
                 id: id,
                 name: name,
                 owner: owner.toUser(),
-                isPrivate: isPrivate
+                isPrivate: isPrivate,
+                isArchived: isArchived ?? false,
+                viewerPermission: viewerPermission
             )
         }
     }
@@ -731,13 +748,17 @@ struct CreateIssueResponse: Codable {
         let name: String
         let owner: OwnerNode
         let isPrivate: Bool
+        let isArchived: Bool?
+        let viewerPermission: String?
 
         func toRepository() -> Repository {
             Repository(
                 id: id,
                 name: name,
                 owner: owner.toUser(),
-                isPrivate: isPrivate
+                isPrivate: isPrivate,
+                isArchived: isArchived ?? false,
+                viewerPermission: viewerPermission
             )
         }
     }
@@ -834,13 +855,17 @@ struct UpdateIssueResponse: Codable {
         let name: String
         let owner: OwnerNode
         let isPrivate: Bool
+        let isArchived: Bool?
+        let viewerPermission: String?
 
         func toRepository() -> Repository {
             Repository(
                 id: id,
                 name: name,
                 owner: owner.toUser(),
-                isPrivate: isPrivate
+                isPrivate: isPrivate,
+                isArchived: isArchived ?? false,
+                viewerPermission: viewerPermission
             )
         }
     }
@@ -1024,6 +1049,7 @@ struct RepositoriesResponse: Codable {
         let isPrivate: Bool
         let hasIssuesEnabled: Bool
         let isArchived: Bool
+        let viewerPermission: String?
 
         /// Issue creation fails on archived repos and on repos with the Issues tab turned off.
         var acceptsNewIssues: Bool {
@@ -1039,7 +1065,9 @@ struct RepositoriesResponse: Codable {
                     login: owner.login,
                     avatarUrl: ""
                 ),
-                isPrivate: isPrivate
+                isPrivate: isPrivate,
+                isArchived: isArchived,
+                viewerPermission: viewerPermission
             )
         }
     }

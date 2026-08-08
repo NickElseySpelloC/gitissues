@@ -278,6 +278,9 @@ struct IssueHeaderView: View {
 
                 Spacer()
 
+                // Read-only repos (archived / no write access) reject all issue mutations.
+                let isReadOnly = issue.repository.isReadOnly
+
                 // Edit button
                 Button(action: onEditTapped) {
                     Text("Edit")
@@ -285,7 +288,8 @@ struct IssueHeaderView: View {
                         .fontWeight(.bold)
                 }
                 .buttonStyle(.bordered)
-                .help("Edit issue")
+                .help(isReadOnly ? "Read-only repository" : "Edit issue")
+                .disabled(isReadOnly)
 
                 // Assign button
                 Button(action: onAssignTapped) {
@@ -294,7 +298,8 @@ struct IssueHeaderView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Assign issue")
+                .help(isReadOnly ? "Read-only repository" : "Assign issue")
+                .disabled(isReadOnly)
 
                 // Pin button
                 Button(action: onPinToggle) {
@@ -303,7 +308,8 @@ struct IssueHeaderView: View {
                         .foregroundColor(isPinned ? .accentColor : .secondary)
                 }
                 .buttonStyle(.plain)
-                .help(isPinned ? "Unpin issue" : "Pin issue")
+                .help(isReadOnly ? "Read-only repository" : (isPinned ? "Unpin issue" : "Pin issue"))
+                .disabled(isReadOnly)
 
                 // Delete button
                 Button(action: onDeleteTapped) {
@@ -312,7 +318,8 @@ struct IssueHeaderView: View {
                         .foregroundColor(.red)
                 }
                 .buttonStyle(.plain)
-                .help("Delete issue")
+                .help(isReadOnly ? "Read-only repository" : "Delete issue")
+                .disabled(isReadOnly)
 
                 // Share button
                 Button(action: onShareTapped) {

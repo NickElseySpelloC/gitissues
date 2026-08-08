@@ -38,6 +38,7 @@ struct GeneralSettingsView: View {
 
     @AppStorage(AppStateService.syncEnabledKey) private var syncEnabled = true
     @AppStorage(AppStateService.syncIntervalSecondsKey) private var syncIntervalSeconds = 30
+    @AppStorage(AppStateService.allowReadOnlyRepoAccessKey) private var allowReadOnlyRepoAccess = false
 
     private static let intervalOptions = [10, 15, 30, 60, 120, 300]
 
@@ -121,6 +122,17 @@ struct GeneralSettingsView: View {
                             .foregroundColor(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+
+                    Toggle("Allow read-only repository access", isOn: $allowReadOnlyRepoAccess)
+                        .padding(.top, 6)
+                        .onChange(of: allowReadOnlyRepoAccess) { _, _ in
+                            NotificationCenter.default.post(name: .allowReadOnlyRepoAccessChanged, object: nil)
+                        }
+
+                    Text("When disabled, issues from archived or read-only repositories are hidden. When enabled, they're shown but their operations (edit, close, assign, delete, kanban moves) remain disabled.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding()

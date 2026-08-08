@@ -30,29 +30,40 @@ struct IssueActions {
 func issueContextMenu(for issue: Issue, selection: Set<Issue>, actions: IssueActions) -> some View {
     let isBatchTarget = selection.contains(issue) && selection.count > 1
     if isBatchTarget {
+        // Read-only repos reject issue mutations, so disable batch actions when any selected
+        // issue belongs to one.
+        let anyReadOnly = selection.contains { $0.repository.isReadOnly }
         Text("\(selection.count) issues selected")
             .foregroundColor(.secondary)
+        if anyReadOnly {
+            Text("Some are read-only")
+                .foregroundColor(.secondary)
+        }
         Divider()
         Button {
             actions.batchClone(selection)
         } label: {
             SwiftUI.Label("Clone \(selection.count) Issues", systemImage: "doc.on.doc")
         }
+        .disabled(anyReadOnly)
         Button {
             actions.batchAssign(selection)
         } label: {
             SwiftUI.Label("Assign \(selection.count) Issues", systemImage: "person.badge.plus")
         }
+        .disabled(anyReadOnly)
         Button {
             actions.copyToRepo(Array(selection))
         } label: {
             SwiftUI.Label("Copy \(selection.count) Issues to Repository…", systemImage: "doc.on.doc")
         }
+        .disabled(anyReadOnly)
         Button {
             actions.moveToRepo(Array(selection))
         } label: {
             SwiftUI.Label("Move \(selection.count) Issues to Repository…", systemImage: "arrow.right.square")
         }
+        .disabled(anyReadOnly)
         let openCount = selection.filter { $0.state == .open }.count
         if openCount > 0 {
             Button {
@@ -60,6 +71,7 @@ func issueContextMenu(for issue: Issue, selection: Set<Issue>, actions: IssueAct
             } label: {
                 SwiftUI.Label("Close \(openCount) Open Issue\(openCount == 1 ? "" : "s")", systemImage: "checkmark.circle")
             }
+            .disabled(anyReadOnly)
         }
         Divider()
         Button(role: .destructive) {
@@ -67,32 +79,45 @@ func issueContextMenu(for issue: Issue, selection: Set<Issue>, actions: IssueAct
         } label: {
             SwiftUI.Label("Delete \(selection.count) Issues", systemImage: "trash")
         }
+        .disabled(anyReadOnly)
     } else {
+        // Read-only repos reject issue mutations, so disable all operations for such issues.
+        let isReadOnly = issue.repository.isReadOnly
+        if isReadOnly {
+            Text("Read-only repository")
+                .foregroundColor(.secondary)
+            Divider()
+        }
         Button {
             actions.edit(issue)
         } label: {
             SwiftUI.Label("Edit Issue", systemImage: "pencil")
         }
+        .disabled(isReadOnly)
         Button {
             actions.clone(issue)
         } label: {
             SwiftUI.Label("Clone Issue", systemImage: "doc.on.doc")
         }
+        .disabled(isReadOnly)
         Button {
             actions.assign(issue)
         } label: {
             SwiftUI.Label("Assign Issue", systemImage: "person.badge.plus")
         }
+        .disabled(isReadOnly)
         Button {
             actions.copyToRepo([issue])
         } label: {
             SwiftUI.Label("Copy to Repository…", systemImage: "doc.on.doc")
         }
+        .disabled(isReadOnly)
         Button {
             actions.moveToRepo([issue])
         } label: {
             SwiftUI.Label("Move to Repository…", systemImage: "arrow.right.square")
         }
+        .disabled(isReadOnly)
         Divider()
         if issue.state == .open {
             Button {
@@ -100,12 +125,14 @@ func issueContextMenu(for issue: Issue, selection: Set<Issue>, actions: IssueAct
             } label: {
                 SwiftUI.Label("Close Issue", systemImage: "checkmark.circle")
             }
+            .disabled(isReadOnly)
         } else {
             Button {
                 actions.reopen(issue)
             } label: {
                 SwiftUI.Label("Reopen Issue", systemImage: "arrow.counterclockwise.circle")
             }
+            .disabled(isReadOnly)
         }
         Divider()
         Button(role: .destructive) {
@@ -113,5 +140,6 @@ func issueContextMenu(for issue: Issue, selection: Set<Issue>, actions: IssueAct
         } label: {
             SwiftUI.Label("Delete Issue", systemImage: "trash")
         }
+        .disabled(isReadOnly)
     }
 }

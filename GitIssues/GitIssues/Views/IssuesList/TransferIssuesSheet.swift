@@ -38,8 +38,13 @@ struct TransferIssuesSheet: View {
     @State private var repositories: [Repository] = []
     @State private var isLoadingRepos = true
     @State private var searchText = ""
-    @State private var selectedRepo: Repository?
+    /// Destination repositories. Copy supports multiple; Move is restricted to one (selecting
+    /// another replaces it), since moving deletes the original.
+    @State private var selectedRepos: [Repository] = []
     @State private var statusText = ""
+
+    /// Whether the user may pick more than one destination (Copy only).
+    private var allowsMultipleDestinations: Bool { mode == .copy }
     @State private var result: TransferResult?
 
     private var filteredRepositories: [Repository] {
@@ -128,6 +133,19 @@ struct TransferIssuesSheet: View {
             Divider()
                 .padding(.top, 8)
 
+            if allowsMultipleDestinations {
+                HStack {
+                    Text(selectedRepos.isEmpty
+                         ? "Select one or more destination repositories"
+                         : "\(selectedRepos.count) repositor\(selectedRepos.count == 1 ? "y" : "ies") selected")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
+
             if isLoadingRepos {
                 ProgressView("Loading repositories…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -141,8 +159,8 @@ struct TransferIssuesSheet: View {
                         ForEach(filteredRepositories) { repo in
                             RepositoryRow(
                                 repository: repo,
-                                isSelected: selectedRepo?.id == repo.id,
-                                onToggle: { selectedRepo = repo }
+                                isSelected: selectedRepos.contains(where: { $0.id == repo.id }),
+                                onToggle: { toggleSelection(repo) }
                             )
                             Divider()
                         }
@@ -165,9 +183,23 @@ struct TransferIssuesSheet: View {
                     phase = .confirming
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(selectedRepo == nil)
+                .disabled(selectedRepos.isEmpty)
             }
             .padding()
+        }
+    }
+
+    /// Adds or removes a destination. In multi-select (Copy) mode this toggles membership;
+    /// in single-select (Move) mode it replaces the current selection.
+    private func toggleSelection(_ repo: Repository) {
+        if allowsMultipleDestinations {
+            if let index = selectedRepos.firstIndex(where: { $0.id == repo.id }) {
+                selectedRepos.remove(at: index)
+            } else {
+                selectedRepos.append(repo)
+            }
+        } else {
+            selectedRepos = [repo]
         }
     }
 
@@ -217,9 +249,12 @@ struct TransferIssuesSheet: View {
     }
 
     private var confirmationMessage: String {
-        guard let repo = selectedRepo else { return "" }
+        guard !selectedRepos.isEmpty else { return "" }
         let subject = issues.count == 1 ? "this issue" : "these \(issues.count) issues"
-        return "\(mode.verb) \(subject) to \(repo.fullName)?"
+        let target = selectedRepos.count == 1
+            ? selectedRepos[0].fullName
+            : "\(selectedRepos.count) repositories"
+        return "\(mode.verb) \(subject) to \(target)?"
     }
 
     private var detailMessage: String {
@@ -303,16 +338,19 @@ struct TransferIssuesSheet: View {
 
     private func resultSummary(_ result: TransferResult) -> String {
         let pastVerb = mode == .copy ? "copied" : "moved"
+        let target = selectedRepos.count == 1
+            ? (selectedRepos.first?.fullName ?? "the repository")
+            : "\(selectedRepos.count) repositories"
         if result.failures.isEmpty {
-            return "\(result.succeeded) issue\(result.succeeded == 1 ? "" : "s") \(pastVerb) to \(selectedRepo?.fullName ?? "the repository")."
+            return "\(result.succeeded) issue\(result.succeeded == 1 ? "" : "s") \(pastVerb) to \(target)."
         }
-        return "\(result.succeeded) of \(result.total) issue\(result.total == 1 ? "" : "s") \(pastVerb). \(result.failures.count) failed."
+        return "\(result.succeeded) of \(result.total) \(pastVerb). \(result.failures.count) failed."
     }
 
     // MARK: - Actions
 
     private func performTransfer() async {
-        guard let repo = selectedRepo else { return }
+        guard !selectedRepos.isEmpty else { return }
         phase = .working
         statusText = "\(mode.verbing) \(issues.count == 1 ? "issue" : "issues")…"
 
@@ -323,9 +361,10 @@ struct TransferIssuesSheet: View {
         let outcome: TransferResult
         switch mode {
         case .copy:
-            outcome = await viewModel.copyIssues(issues, to: repo, progress: progress)
+            outcome = await viewModel.copyIssues(issues, to: selectedRepos, progress: progress)
         case .move:
-            outcome = await viewModel.moveIssues(issues, to: repo, progress: progress)
+            // Move is restricted to a single destination.
+            outcome = await viewModel.moveIssues(issues, to: selectedRepos[0], progress: progress)
         }
 
         result = outcome

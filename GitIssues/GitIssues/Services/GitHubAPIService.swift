@@ -49,6 +49,11 @@ class GitHubAPIService {
         // Build search query string
         var queryParts = ["involves:@me", "sort:updated-desc"]
 
+        // Exclude archived (read-only) repositories unless the user has opted in.
+        if !AppStateService.allowReadOnlyRepoAccess {
+            queryParts.append("archived:false")
+        }
+
         // Add state filter
         if let states = states {
             let stateStrings = states.map { state -> String in
@@ -340,9 +345,12 @@ class GitHubAPIService {
             variables: variables
         )
 
+        // Only repos that accept new issues and that the viewer can write to are valid
+        // destinations / selections (archived or read-only repos reject issue creation).
         let repositories = response.viewer.repositories.nodes
             .filter { $0.acceptsNewIssues }
             .map { $0.toRepository() }
+            .filter { !$0.isReadOnly }
         let pageInfo = response.viewer.repositories.pageInfo
 
         return (repositories, pageInfo.hasNextPage, pageInfo.endCursor)

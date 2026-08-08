@@ -8,6 +8,11 @@
 import Foundation
 import AppKit
 
+extension Notification.Name {
+    /// Posted when the "Allow read-only repository access" setting is toggled.
+    static let allowReadOnlyRepoAccessChanged = Notification.Name("allowReadOnlyRepoAccessChanged")
+}
+
 struct AppState: Codable {
     var sidebarWidth: Double?
     var filterState: FilterState?
@@ -25,6 +30,7 @@ struct AppState: Codable {
 class AppStateService {
     static let syncEnabledKey = "syncEnabled"
     static let syncIntervalSecondsKey = "syncIntervalSeconds"
+    static let allowReadOnlyRepoAccessKey = "allowReadOnlyRepoAccess"
 
     private let defaults = UserDefaults.standard
     private let appStateKey = "appState"
@@ -83,6 +89,12 @@ class AppStateService {
         let defaults = UserDefaults.standard
         let value = defaults.integer(forKey: syncIntervalSecondsKey)
         return value > 0 ? value : 30
+    }
+
+    /// Whether issues from read-only (archived or no-write-access) repositories are included.
+    /// Defaults to `false`, so read-only repos are hidden until the user opts in.
+    static var allowReadOnlyRepoAccess: Bool {
+        UserDefaults.standard.bool(forKey: allowReadOnlyRepoAccessKey)
     }
 
     /// Loads filter state and converts back to FilterOptions

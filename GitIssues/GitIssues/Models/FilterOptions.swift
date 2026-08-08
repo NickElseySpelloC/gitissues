@@ -98,8 +98,16 @@ struct FilterOptions {
     var selectedLabels: Set<String> = []
     var sortOption: SortOption = .updatedDesc
     var searchText: String = ""
+    /// Whether issues from read-only (archived / no-write-access) repos are shown.
+    /// Not persisted in filter state — mirrored from `AppStateService.allowReadOnlyRepoAccess`.
+    var allowReadOnly: Bool = AppStateService.allowReadOnlyRepoAccess
 
     func matches(issue: Issue, viewerLogin: String?) -> Bool {
+        // Hide read-only repos (archived or no write access) unless the user opted in.
+        if !allowReadOnly && issue.repository.isReadOnly {
+            return false
+        }
+
         // Check state filter
         switch stateFilter {
         case .all:
